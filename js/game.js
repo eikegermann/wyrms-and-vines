@@ -11,7 +11,7 @@ const COLOURS = [
   { c: '#8e24aa', n: 'Purple' }, { c: '#ef6c00', n: 'Orange' }, { c: '#00897b', n: 'Teal' }, { c: '#d81b60', n: 'Pink' }];
 const AI_NAMES = ['Cinder', 'Sleet', 'Puff', 'Smoulder'];
 const AI_ACCURACY = 0.88;                // chance a computer player gets a sum right
-const DELAY = { ai: 750, step: 150, slide: 750 };
+const DELAY = { ai: 750, step: 150, slide: 750, spin: 80, hold: 1700 };
 
 // ---------- Saved data: only which levels each name has played ----------
 const STORE_KEY = 'wyrms-and-vines.played';
@@ -94,6 +94,11 @@ $('#startBtn').onclick = () => {
   if (!code) { code = W.randomCode(); $('#codeInput').value = code; }
   startGame(code, ps);
 };
+$('#logBtn').onclick = () => {
+  const open = $('#log').classList.toggle('open');
+  $('#logBtn').textContent = open ? '📜 Hide log' : '📜 Show log';
+  if (open) $('#log').scrollTop = $('#log').scrollHeight;
+};
 $('#quitBtn').onclick = () => { G = null; show('setup'); renderSetup(); };
 
 // ===================================================================
@@ -106,6 +111,7 @@ function startGame(code, players) {
   const board = W.generateBoard(code);
   G = { board, players: players.map(p => ({ ...p, pos: 1 })), cur: 0, over: false };
   $('#codeShow').textContent = board.code;
+  $('#log').classList.remove('open'); $('#logBtn').textContent = '📜 Show log';
   $('#log').innerHTML = '';
   $('#tokens').innerHTML = '';
   drawBoard(board);
@@ -252,15 +258,34 @@ function askNumber(g) {
   }).then(v => { alive(g); return v; });
 }
 
-async function showRoll(g, sidesList, values) {
-  const box = el('div', 'dice');
-  const dice = sidesList.map(s => { const d = el('div', 'die rolling', '?'); d.title = 'd' + s; box.appendChild(d); return d; });
-  stage().appendChild(box);
-  for (let k = 0; k < 6; k++) {
-    dice.forEach((d, i) => { d.textContent = sidesList[i] === 10 ? Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * sidesList[i]); });
-    await wait(g, 60);
+// Big roll in the middle of the screen: dice tumble, then the result is announced.
+// It stays up for a moment (click to close it sooner); the dice also stay in the side panel.
+async function showRoll(g, who, sidesList, values, result) {
+  const label = sidesList.length === 2 && sidesList[0] === sidesList[1] ? `2d${sidesList[0]}` : sidesList.map(s => 'd' + s).join(' + ');
+  const ov = $('#rollOverlay');
+  ov.innerHTML = '';
+  const card = el('div', 'rollCard');
+  card.appendChild(el('div', 'rollWho', `🎲 ${esc(who)} rolls ${label}`));
+  const box = el('div', 'dice big');
+  const dice = sidesList.map(s => { const d = el('div', 'die rolling', '?'); box.appendChild(d); return d; });
+  card.appendChild(box);
+  const res = el('div', 'rollResult', '&nbsp;');
+  card.appendChild(res);
+  ov.appendChild(card);
+  ov.classList.add('show');
+  const rnd = s => s === 10 ? Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * s);
+  for (let k = 0; k < 9; k++) {
+    dice.forEach((d, i) => { d.textContent = rnd(sidesList[i]); });
+    await wait(g, DELAY.spin);
   }
   dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
+  res.innerHTML = result;
+  await new Promise(r => { const t = setTimeout(r, DELAY.hold); ov.onclick = () => { clearTimeout(t); r(); }; });
+  ov.classList.remove('show'); ov.onclick = null;
+  alive(g);
+  const small = el('div', 'dice');
+  values.forEach(v => small.appendChild(el('div', 'die', v)));
+  stage().appendChild(small);
 }
 
 // ---------- Movement ----------
@@ -297,7 +322,7 @@ async function turn(g, p) {
   setStage(`${p.ai ? '🤖 ' : ''}${esc(p.name)}'s turn`, `On square <b>${p.pos}</b>.`);
   await choose(g, [{ label: '🎲 Roll to move', value: 1, cls: 'gold' }], p.ai ? 1 : undefined);
   const r = W.rollDie(6);
-  await showRoll(g, [6], [r]);
+  await showRoll(g, p.name, [6], [r], `<b>${r}</b>! Move ${r} square${r > 1 ? 's' : ''}.`);
   const dest = Math.min(p.pos + r, W.SIZE);
   log(`${esc(p.name)} rolls ${r} and moves to ${dest}.`);
   await walk(g, p, dest);
@@ -338,7 +363,7 @@ async function puzzle(g, p, link) {
       (heat ? `Vine: <b>${total}</b> of ${T}` : `Grip: <b>${total}</b>`));
     await choose(g, [{ label: `🎲 Roll ${W.diceLabel(L.dice)}`, value: 1, cls: heat ? 'vine' : 'wyrm' }], p.ai ? 1 : undefined);
     const rolls = W.rollDice(L.dice);
-    await showRoll(g, L.dice, rolls);
+    await showRoll(g, p.name, L.dice, rolls, rolls.length === 2 ? `<b>${rolls[0]}</b> and <b>${rolls[1]}</b>!` : `<b>${rolls[0]}</b>!`);
     const sum = rolls.reduce((a, b) => a + b, 0);
 
     if (!heat && sum >= total) {
@@ -403,7 +428,7 @@ async function duel(g, p, others) {
   const render = (title, activeIdx, digit, pickable) => {
     setStage(title, `<b>${goal === 'highest' ? '⬆️ Highest' : '⬇️ Lowest'}</b> number wins.`);
     const box = el('div', 'rwm');
-    box.appendChild(el('div', 'slotLabels', '<span>hundreds</span><span>tens</span><span>ones</span>'));
+    box.appendChild(el('div', 'rwmRow slotLabels', '<div class="who"></div><span>hundreds</span><span>tens</span><span>ones</span>'));
     const buttons = [];
     duelists.forEach((d, di) => {
       const row = el('div', 'rwmRow');
@@ -427,7 +452,7 @@ async function duel(g, p, others) {
       render(`⚔️ ${esc(d.name)}'s roll`, di, null, false);
       await choose(g, [{ label: '🎲 Roll d10', value: 1, cls: 'gold' }], d.ai ? 1 : undefined);
       const digit = W.rollD10();
-      await showRoll(g, [10], [digit]);
+      await showRoll(g, d.name, [10], [digit], `<b>${digit}</b>! Where will it go?`);
       let where;
       if (d.ai) {
         render(`⚔️ ${esc(d.name)} rolled ${digit}`, di, digit, false);

@@ -4,7 +4,7 @@ import pathlib, sys
 from playwright.sync_api import sync_playwright
 
 URL = (pathlib.Path(__file__).resolve().parent.parent / 'index.html').as_uri()
-FAST = "Object.assign(WVGame.DELAY,{ai:5,step:1,slide:5})"
+FAST = "Object.assign(WVGame.DELAY,{ai:5,step:1,slide:5,spin:1,hold:5})"
 
 def check_errors(errors):
     if errors:
