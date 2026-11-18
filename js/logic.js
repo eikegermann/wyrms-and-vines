@@ -180,12 +180,12 @@ function aiPlace(slots, digit, goal) {
 }
 
 // ---------- Level unlocks (by player name, on this device) ----------
-// Levels 4–5 unlock after finishing a game at level 3 or higher; Adult after a game at level 5.
+// Levels 4–5 unlock after finishing a game at level 3 or higher. Adult is always open.
 function unlockedLevels(maxPlayed, unlockAll) {
   if (unlockAll) return LEVELS.map(l => l.id);
   const ids = [1, 2, 3];
   if (maxPlayed >= 3) ids.push(4, 5);
-  if (maxPlayed >= 5) ids.push(6);
+  ids.push(6);
   return ids;
 }
 

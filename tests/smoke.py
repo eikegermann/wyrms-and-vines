@@ -57,11 +57,12 @@ with sync_playwright() as pw:
     page.goto(URL)
     lvl4 = page.locator('.prow').first.locator('select').first.locator('option[value="4"]')
     assert lvl4.is_disabled(), 'level 4 should be locked'
+    assert not page.locator('.prow').first.locator('select').first.locator('option[value="6"]').is_disabled(), 'adult always open'
     page.evaluate("localStorage.setItem('wyrms-and-vines.played', JSON.stringify({'player 1': 3}))")
     page.goto(URL)
     lvl4 = page.locator('.prow').first.locator('select').first.locator('option[value="4"]')
     adult = page.locator('.prow').first.locator('select').first.locator('option[value="6"]')
-    assert not lvl4.is_disabled() and adult.is_disabled(), 'level 4 open, adult still locked'
+    assert not lvl4.is_disabled() and not adult.is_disabled(), 'level 4 and adult open'
     page.check('#unlockAll')
     assert not page.locator('.prow').first.locator('select').first.locator('option[value="6"]').is_disabled()
     print('unlocks OK')

@@ -7,7 +7,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const COLOURS = [
-  { c: '#e53935', n: 'Red' }, { c: '#1e88e5', n: 'Blue' }, { c: '#f9a825', n: 'Gold' }, { c: '#2e7d32', n: 'Green' },
+  { c: '#1e88e5', n: 'Blue' }, { c: '#e53935', n: 'Red' }, { c: '#f9a825', n: 'Gold' }, { c: '#2e7d32', n: 'Green' },
   { c: '#8e24aa', n: 'Purple' }, { c: '#ef6c00', n: 'Orange' }, { c: '#00897b', n: 'Teal' }, { c: '#d81b60', n: 'Pink' }];
 const AI_NAMES = ['Cinder', 'Sleet', 'Puff', 'Smoulder'];
 const AI_ACCURACY = 0.88;                // chance a computer player gets a sum right

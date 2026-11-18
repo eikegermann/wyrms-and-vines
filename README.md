@@ -26,7 +26,7 @@ Play at **https://eikegermann.github.io/wyrms-and-vines/** (once GitHub Pages is
 | 5 | 1d20 | 60 |
 | Adult | 1d100 | 200 |
 
-- **Unlocking:** levels 4 and 5 unlock once a name has finished a game at level 3, whether they won or not. Adult unlocks after a game at level 5. "Unlock all levels" on the setup screen opens everything.
+- **Unlocking:** levels 4 and 5 unlock once a name has finished a game at level 3, whether they won or not. The Adult level is always open, so grown-ups can skip the child levels. "Unlock all levels" on the setup screen opens everything.
 - **What's saved:** only the highest level each name has played, in the browser on that device.
 
 ## Board codes
