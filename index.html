@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wyrms &amp; Vines</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+
+<!-- ===== Setup ===== -->
+<section id="setup" class="screen active">
+  <h1>🐉 Wyrms &amp; Vines 🌿</h1>
+  <p class="sub">Climb the vines, dodge the wyrms, first to square 100 wins.</p>
+
+  <div class="card">
+    <h2>Board</h2>
+    <div class="row">
+      <label for="codeInput">Board code</label>
+      <input id="codeInput" class="code" maxlength="20" autocomplete="off" spellcheck="false">
+      <button class="btn" id="newCodeBtn" title="Pick a new random board">🎲 New board</button>
+    </div>
+    <p class="hint">The same code always makes the same board. Share a code to play a favourite board again.</p>
+  </div>
+
+  <div class="card">
+    <h2>Players</h2>
+    <div id="playerRows"></div>
+    <div class="row">
+      <button class="btn" id="addPlayerBtn">＋ Add player</button>
+      <label class="check"><input type="checkbox" id="unlockAll"> Unlock all levels</label>
+    </div>
+    <p class="hint">Levels 4 and 5 open once that name has played a game at level 3. Adult opens after a game at level 5.</p>
+  </div>
+
+  <button class="btn big go" id="startBtn">Start the game!</button>
+</section>
+
+<!-- ===== Game ===== -->
+<section id="game" class="screen">
+  <div id="boardWrap">
+    <div id="board"></div>
+    <svg id="links" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    <div id="numbers"></div>
+    <div id="tokens"></div>
+  </div>
+
+  <aside id="panel">
+    <div class="topline">
+      <span>Board <b id="codeShow"></b></span>
+      <button class="btn small ghost" id="quitBtn">↩ Setup</button>
+    </div>
+    <div id="playerList"></div>
+    <div id="stage"></div>
+    <div id="log"></div>
+  </aside>
+</section>
+
+<script src="js/logic.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
