@@ -21,6 +21,11 @@ for (let i = 0; i < N; i++) {
   if (G < R.gainPool[0] - R.poolSlack || G > R.gainPool[1] + R.poolSlack) fail(code, 'gain total ' + G);
   if (D / G < R.dropToGain[0] - 0.08 || D / G > R.dropToGain[1] + 0.08) fail(code, `drop/gain ${D}/${G}`);
   stat.gain = (stat.gain || 0) + G; stat.drop = (stat.drop || 0) + D;
+  if (b.wyrms.filter(w => w.to <= 10).length > R.maxLowTails) fail(code, 'too many wyrms end in row 1');
+  if (!b.vines.some(v => v.from <= 10 && v.to - v.from >= R.starterVine[0] && v.to - v.from <= R.starterVine[1])) fail(code, 'no starter vine');
+  if (!b.vines.some(v => v.to >= R.landingZone[0] && v.to <= R.landingZone[1])) fail(code, 'no vine to 80–85');
+  for (const big of b.wyrms.filter(w => w.from - w.to > R.bigDrop))
+    if (b.wyrms.some(w => w.from > big.to && w.from - big.to <= R.safeAfterBigDrop)) fail(code, `wyrm head right after big drop to ${big.to}`);
   const links = [...b.vines, ...b.wyrms];
   for (let x = 0; x < links.length; x++) for (let y = x + 1; y < links.length; y++)
     if (W.linkDistance(links[x], links[y]) < R.linkSpacing) fail(code, 'links too close');

@@ -43,6 +43,9 @@ A board code like `FERN-42` is the seed for the board generator: the same code a
 - At most three vines or wyrms start in any row.
 - No vine reaches the top row: vines end on 90 or lower.
 - The last two rows (81–99) always have 2–4 wyrm heads, at least one on 95–99. One of them is mild (a 10–16 square drop) and one is a proper ouch (22–35).
+- There's always a small-to-medium vine (11–24 squares) starting in the first row, and at least one vine ending on 80–85.
+- At most one wyrm ends in the first row (squares 1–10).
+- After a drop of more than 20 squares, there's no wyrm head within one die roll (6 squares) of where you land.
 - Wyrm heads keep their distance, and meaner pairs sit further apart: the minimum gap is 2 + (combined drop − 5) ÷ 5, rounded down. For example, two 10-square wyrms need 5 squares between their heads, and a 12 and a 30 need 9.
 
 The generator then plays 1,500 quick games in the background and keeps the board only if games last a sensible number of turns. The rules live in `RULES` at the top of `js/logic.js`, and `node tests/board_rules.js` checks them on 1,000 boards.

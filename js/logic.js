@@ -98,7 +98,12 @@ const RULES = {
   vineLength: [11, 34],
   wyrmDrop: [10, 30],
   longWyrm: [40, 55],        // at most one per board
-  maxLinks: 11,              // per type          // minimum space between any two vines/wyrms, in squares
+  maxLinks: 11,              // per type
+  maxLowTails: 1,            // at most one wyrm ends in the first row (1–10)
+  starterVine: [11, 24],     // always a small-to-medium vine starting in the first row
+  landingZone: [80, 85],     // always at least one vine ending here
+  bigDrop: 20,               // after a drop longer than this...
+  safeAfterBigDrop: 6,       // ...no wyrm head within one die roll of where you land          // minimum space between any two vines/wyrms, in squares
   vineMaxTop: 90,            // no vine reaches the top row (91–100)
   endZoneFrom: 81,           // the last two rows: 81–99
   endZoneWyrms: [2, 4],      // at least 2, at most 4 wyrm heads there
@@ -136,11 +141,18 @@ function placeLinks(rng, strict = true) {
   const endCount = () => wyrms.filter(w => inEnd(w.from)).length;
   const spaced = (from, drop) => wyrms.every(w => Math.abs(w.from - from) >= RULES.wyrmGap(drop, w.from - w.to));
 
+  // Is a wyrm head within one die roll after the landing square of a big drop?
+  const nearBigLanding = (head, tail, drop) =>
+    wyrms.some(w => w.from - w.to > RULES.bigDrop && head > w.to && head - w.to <= RULES.safeAfterBigDrop) ||
+    (drop > RULES.bigDrop && wyrms.some(w => w.from > tail && w.from - tail <= RULES.safeAfterBigDrop));
+
   function tryWyrm(from, drop) {
     const to = from - drop;
     if (to < 2 || !free(from) || !free(to)) return false;
     if (rowOf(to) >= rowOf(from) || rowStarts[rowOf(from)] >= 3) return false;
     if (inEnd(from) && endCount() >= RULES.endZoneWyrms[1]) return false;
+    if (to <= 10 && wyrms.filter(w => w.to <= 10).length >= RULES.maxLowTails) return false;
+    if (nearBigLanding(from, to, drop)) return false;
     if (!spaced(from, drop) || !tidy({ from, to })) return false;
     claim(from, to);
     const w = { type: 'wyrm', from, to };
@@ -158,6 +170,27 @@ function placeLinks(rng, strict = true) {
   for (let t = 0; t < 200 && !ok; t++) ok = tryWyrm(randInt(rng, RULES.endZoneFrom, 99), randInt(rng, ...kinds[1]));
   if (!ok) return null;
 
+  function tryVine(from, len) {
+    const to = from + len;
+    if (from < 2 || to > RULES.vineMaxTop || !free(from) || !free(to)) return false;
+    if (rowOf(to) <= rowOf(from) || rowStarts[rowOf(from)] >= 3) return false;
+    if (!tidy({ from, to })) return false;
+    claim(from, to);
+    const v = { type: 'vine', from, to };
+    vines.push(v); starts.set(from, v);
+    return true;
+  }
+  // 1b) The must-have vines: a starter in the first row, and one landing on 80–85.
+  ok = false;
+  for (let t = 0; t < 200 && !ok; t++) ok = tryVine(randInt(rng, 2, 10), randInt(rng, ...RULES.starterVine));
+  if (!ok) return null;
+  ok = false;
+  for (let t = 0; t < 300 && !ok; t++) {
+    const to = randInt(rng, ...RULES.landingZone), len = randInt(rng, ...RULES.vineLength);
+    ok = tryVine(to - len, len);
+  }
+  if (!ok) return null;
+
   // 2) The rest of the wyrms, until the drop pool is used up (up to 4 in the end zone).
   let tries = 0;
   while (dropPool - dropped() >= RULES.wyrmDrop[0] && wyrms.length < RULES.maxLinks && tries++ < 1500) {
@@ -170,16 +203,9 @@ function placeLinks(rng, strict = true) {
   tries = 0;
   while (gainPool - gained() >= RULES.vineLength[0] && vines.length < RULES.maxLinks && tries++ < 1500) {
     const len = pickSize(gainPool - gained(), RULES.vineLength);
-    const from = randInt(rng, 2, RULES.vineMaxTop - len);
-    const to = from + len;
-    if (to > RULES.vineMaxTop || !free(from) || !free(to)) continue;
-    if (rowOf(to) <= rowOf(from) || rowStarts[rowOf(from)] >= 3) continue;
-    if (!tidy({ from, to })) continue;
-    claim(from, to);
-    const v = { type: 'vine', from, to };
-    vines.push(v); starts.set(from, v);
+    tryVine(randInt(rng, 2, RULES.vineMaxTop - len), len);
   }
-  if (strict && Math.abs(gainPool - gained()) > RULES.poolSlack || Math.abs(dropPool - dropped()) > RULES.poolSlack) return null;
+  if (strict && (Math.abs(gainPool - gained()) > RULES.poolSlack || Math.abs(dropPool - dropped()) > RULES.poolSlack)) return null;
   return { vines, wyrms, starts };
 }
 
@@ -213,7 +239,7 @@ function generateBoard(code) {
   const norm = normaliseCode(code);
   const rng = makeRng(hashString(norm));
   let board = null, stats = null, attempts = 0;
-  for (attempts = 1; attempts <= 200; attempts++) {
+  for (attempts = 1; attempts <= 400; attempts++) {
     const placed = placeLinks(rng);
     if (!placed) continue;
     board = placed;
