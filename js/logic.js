@@ -89,7 +89,16 @@ function linkDistance(a, b) {
 // ---------- Board generation ----------
 // Board rules. Tweak these to experiment.
 const RULES = {
-  linkSpacing: 0.6,          // minimum space between any two vines/wyrms, in squares
+  linkSpacing: 0.6,
+  // Gain/drop pools: the vines together climb about `gainPool` squares, the wyrms together
+  // drop about gain × dropToGain. Links are drawn until each pool is used up (within poolSlack).
+  gainPool: [130, 160],
+  dropToGain: [0.95, 1.1],
+  poolSlack: 6,
+  vineLength: [11, 34],
+  wyrmDrop: [10, 30],
+  longWyrm: [40, 55],        // at most one per board
+  maxLinks: 11,              // per type          // minimum space between any two vines/wyrms, in squares
   vineMaxTop: 90,            // no vine reaches the top row (91–100)
   endZoneFrom: 81,           // the last two rows: 81–99
   endZoneWyrms: [2, 4],      // at least 2, at most 4 wyrm heads there
@@ -101,12 +110,22 @@ const RULES = {
   wyrmGap: (dropA, dropB) => Math.max(2, 2 + Math.floor((dropA + dropB - 5) / 5)),
 };
 
-function placeLinks(rng) {
+function placeLinks(rng, strict = true) {
   const used = new Set([1, SIZE]);
   const starts = new Map();          // start square -> {type, from, to}
   const rowStarts = new Array(10).fill(0);
   const vines = [], wyrms = [];
-  const nVines = randInt(rng, 7, 9), nWyrms = randInt(rng, 7, 9);
+  const gainPool = randInt(rng, ...RULES.gainPool);
+  const dropPool = Math.round(gainPool * (RULES.dropToGain[0] + rng() * (RULES.dropToGain[1] - RULES.dropToGain[0])));
+  const gained = () => vines.reduce((a, v) => a + v.to - v.from, 0);
+  const dropped = () => wyrms.reduce((a, w) => a + w.from - w.to, 0);
+  // Pick a size that won't strand a remainder too small for another link.
+  const pickSize = (remaining, [lo, hi]) => {
+    let n = Math.min(randInt(rng, lo, hi), remaining);
+    const left = remaining - n;
+    if (left > 0 && left < lo) n = remaining <= hi ? remaining : remaining - lo;
+    return n;
+  };
   let longWyrms = 0;
 
   const free = n => n > 1 && n < SIZE && !used.has(n);
@@ -139,19 +158,19 @@ function placeLinks(rng) {
   for (let t = 0; t < 200 && !ok; t++) ok = tryWyrm(randInt(rng, RULES.endZoneFrom, 99), randInt(rng, ...kinds[1]));
   if (!ok) return null;
 
-  // 2) The rest of the wyrms, anywhere (up to 4 in the end zone).
+  // 2) The rest of the wyrms, until the drop pool is used up (up to 4 in the end zone).
   let tries = 0;
-  while (wyrms.length < nWyrms && tries++ < 800) {
-    const from = randInt(rng, 13, 99);
-    const long = rng() < 0.15 && longWyrms === 0;
-    const drop = long ? randInt(rng, 40, 55) : randInt(rng, 10, 30);
-    if (tryWyrm(from, drop) && drop >= 40) longWyrms++;
+  while (dropPool - dropped() >= RULES.wyrmDrop[0] && wyrms.length < RULES.maxLinks && tries++ < 1500) {
+    const remaining = dropPool - dropped();
+    const long = longWyrms === 0 && remaining >= RULES.longWyrm[0] && rng() < 0.15;
+    const drop = long ? pickSize(remaining, RULES.longWyrm) : pickSize(remaining, RULES.wyrmDrop);
+    if (tryWyrm(randInt(rng, 13, 99), drop) && drop >= RULES.longWyrm[0]) longWyrms++;
   }
-  // 3) Vines, never reaching past square 90.
+  // 3) Vines, until the gain pool is used up, never reaching past square 90.
   tries = 0;
-  while (vines.length < nVines && tries++ < 500) {
-    const from = randInt(rng, 2, RULES.vineMaxTop - 11);
-    const len = randInt(rng, 11, 34);
+  while (gainPool - gained() >= RULES.vineLength[0] && vines.length < RULES.maxLinks && tries++ < 1500) {
+    const len = pickSize(gainPool - gained(), RULES.vineLength);
+    const from = randInt(rng, 2, RULES.vineMaxTop - len);
     const to = from + len;
     if (to > RULES.vineMaxTop || !free(from) || !free(to)) continue;
     if (rowOf(to) <= rowOf(from) || rowStarts[rowOf(from)] >= 3) continue;
@@ -160,7 +179,7 @@ function placeLinks(rng) {
     const v = { type: 'vine', from, to };
     vines.push(v); starts.set(from, v);
   }
-
+  if (strict && Math.abs(gainPool - gained()) > RULES.poolSlack || Math.abs(dropPool - dropped()) > RULES.poolSlack) return null;
   return { vines, wyrms, starts };
 }
 
@@ -201,6 +220,8 @@ function generateBoard(code) {
     stats = simulate(board, rng);
     if (stats.mean >= BALANCE.minMean && stats.mean <= BALANCE.maxMean && stats.p90 <= BALANCE.maxP90) break;
   }
+  // Safety net (never seen in tests): accept a board that misses the pools rather than fail.
+  for (let t = 0; !board && t < 50; t++) { board = placeLinks(rng, false); if (board) stats = simulate(board, rng); }
   return { code: norm, vines: board.vines, wyrms: board.wyrms, starts: board.starts, stats, attempts };
 }
 

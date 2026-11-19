@@ -17,6 +17,10 @@ for (let i = 0; i < N; i++) {
   if (!drops.some(d => d >= R.mediumDrop[0] && d <= R.mediumDrop[1])) fail(code, 'no medium end wyrm ' + drops);
   for (const a of b.wyrms) for (const c of b.wyrms) if (a !== c &&
     Math.abs(a.from - c.from) < R.wyrmGap(a.from - a.to, c.from - c.to)) fail(code, `wyrms too close ${a.from}/${c.from}`);
+  const G = b.vines.reduce((a, v) => a + v.to - v.from, 0), D = b.wyrms.reduce((a, w) => a + w.from - w.to, 0);
+  if (G < R.gainPool[0] - R.poolSlack || G > R.gainPool[1] + R.poolSlack) fail(code, 'gain total ' + G);
+  if (D / G < R.dropToGain[0] - 0.08 || D / G > R.dropToGain[1] + 0.08) fail(code, `drop/gain ${D}/${G}`);
+  stat.gain = (stat.gain || 0) + G; stat.drop = (stat.drop || 0) + D;
   const links = [...b.vines, ...b.wyrms];
   for (let x = 0; x < links.length; x++) for (let y = x + 1; y < links.length; y++)
     if (W.linkDistance(links[x], links[y]) < R.linkSpacing) fail(code, 'links too close');
@@ -25,5 +29,5 @@ for (let i = 0; i < N; i++) {
   stat.vines += b.vines.length; stat.wyrms += b.wyrms.length; stat.end += end.length;
   stat.mean += b.stats.mean; stat.attempts += b.attempts; stat.maxAttempts = Math.max(stat.maxAttempts, b.attempts);
 }
-console.log(`boards ${N}, failures ${bad}; avg vines ${(stat.vines / N).toFixed(1)}, wyrms ${(stat.wyrms / N).toFixed(1)}, end-zone wyrms ${(stat.end / N).toFixed(1)}, turns ${(stat.mean / N).toFixed(1)}, attempts avg ${(stat.attempts / N).toFixed(1)} max ${stat.maxAttempts}`);
+console.log(`gain ${(stat.gain / N).toFixed(0)}, drop ${(stat.drop / N).toFixed(0)}; boards ${N}, failures ${bad}; avg vines ${(stat.vines / N).toFixed(1)}, wyrms ${(stat.wyrms / N).toFixed(1)}, end-zone wyrms ${(stat.end / N).toFixed(1)}, turns ${(stat.mean / N).toFixed(1)}, attempts avg ${(stat.attempts / N).toFixed(1)} max ${stat.maxAttempts}`);
 process.exit(bad ? 1 : 0);

@@ -36,7 +36,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 ## Board codes
 
 A board code like `FERN-42` is the seed for the board generator: the same code always makes the same board, and nothing is stored. Each new board follows these rules:
-- 7–9 vines and up to 9 wyrms.
+- **Gain and drop pools:** the vines climb about 130–160 squares in total, and the wyrms drop about the same (0.95–1.1 times as much). Vines and wyrms are drawn until each pool is used up, so their number varies (usually 6–9 of each).
 - Nothing on square 1 or 100.
 - No square is both an end and a start.
 - No two vines or wyrms cross, and they keep a little space between them (`linkSpacing`).
