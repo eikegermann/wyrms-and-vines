@@ -74,8 +74,33 @@ function crosses(a, b) {
   const d1 = d(p3, p4, p1), d2 = d(p3, p4, p2), d3 = d(p1, p2, p3), d4 = d(p1, p2, p4);
   return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
 }
+// Closest distance (in squares) between two links drawn as straight lines.
+function linkDistance(a, b) {
+  if (crosses(a, b)) return 0;
+  const P = [centre(a.from), centre(a.to)], Q = [centre(b.from), centre(b.to)];
+  const pointSeg = (p, s1, s2) => {
+    const dx = s2.x - s1.x, dy = s2.y - s1.y;
+    const t = Math.max(0, Math.min(1, ((p.x - s1.x) * dx + (p.y - s1.y) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(p.x - (s1.x + t * dx), p.y - (s1.y + t * dy));
+  };
+  return Math.min(pointSeg(P[0], ...Q), pointSeg(P[1], ...Q), pointSeg(Q[0], ...P), pointSeg(Q[1], ...P));
+}
 
 // ---------- Board generation ----------
+// Board rules. Tweak these to experiment.
+const RULES = {
+  linkSpacing: 0.6,          // minimum space between any two vines/wyrms, in squares
+  vineMaxTop: 90,            // no vine reaches the top row (91–100)
+  endZoneFrom: 81,           // the last two rows: 81–99
+  endZoneWyrms: [2, 4],      // at least 2, at most 4 wyrm heads there
+  lateZone: [95, 99],        // at least one wyrm head in here
+  mildDrop: [10, 16],        // the gentle end-zone wyrm
+  mediumDrop: [22, 35],      // the "good ouch" end-zone wyrm
+  // Wyrm heads must be at least this many squares apart; meaner pairs sit further apart.
+  // dropA + dropB = how far the two wyrms throw you back together.
+  wyrmGap: (dropA, dropB) => Math.max(2, 2 + Math.floor((dropA + dropB - 5) / 5)),
+};
+
 function placeLinks(rng) {
   const used = new Set([1, SIZE]);
   const starts = new Map();          // start square -> {type, from, to}
@@ -85,36 +110,57 @@ function placeLinks(rng) {
   let longWyrms = 0;
 
   const free = n => n > 1 && n < SIZE && !used.has(n);
-  // Keep the board readable: a new link may not cross any existing link.
-  const tidy = link => [...vines, ...wyrms].filter(o => crosses(o, link)).length === 0;
+  // Keep the board readable: links never cross and keep a little space between them.
+  const tidy = link => [...vines, ...wyrms].every(o => linkDistance(o, link) >= RULES.linkSpacing);
   const claim = (a, b) => { used.add(a); used.add(b); rowStarts[rowOf(a)]++; };
+  const inEnd = n => n >= RULES.endZoneFrom;
+  const endCount = () => wyrms.filter(w => inEnd(w.from)).length;
+  const spaced = (from, drop) => wyrms.every(w => Math.abs(w.from - from) >= RULES.wyrmGap(drop, w.from - w.to));
 
+  function tryWyrm(from, drop) {
+    const to = from - drop;
+    if (to < 2 || !free(from) || !free(to)) return false;
+    if (rowOf(to) >= rowOf(from) || rowStarts[rowOf(from)] >= 3) return false;
+    if (inEnd(from) && endCount() >= RULES.endZoneWyrms[1]) return false;
+    if (!spaced(from, drop) || !tidy({ from, to })) return false;
+    claim(from, to);
+    const w = { type: 'wyrm', from, to };
+    wyrms.push(w); starts.set(from, w);
+    return true;
+  }
+
+  // 1) The two end-zone wyrms: one mild, one medium; one of them sits on 95–99.
+  const mildFirst = rng() < 0.5;
+  const kinds = mildFirst ? [RULES.mildDrop, RULES.mediumDrop] : [RULES.mediumDrop, RULES.mildDrop];
+  let ok = false;
+  for (let t = 0; t < 100 && !ok; t++) ok = tryWyrm(randInt(rng, ...RULES.lateZone), randInt(rng, ...kinds[0]));
+  if (!ok) return null;
+  ok = false;
+  for (let t = 0; t < 200 && !ok; t++) ok = tryWyrm(randInt(rng, RULES.endZoneFrom, 99), randInt(rng, ...kinds[1]));
+  if (!ok) return null;
+
+  // 2) The rest of the wyrms, anywhere (up to 4 in the end zone).
   let tries = 0;
+  while (wyrms.length < nWyrms && tries++ < 800) {
+    const from = randInt(rng, 13, 99);
+    const long = rng() < 0.15 && longWyrms === 0;
+    const drop = long ? randInt(rng, 40, 55) : randInt(rng, 10, 30);
+    if (tryWyrm(from, drop) && drop >= 40) longWyrms++;
+  }
+  // 3) Vines, never reaching past square 90.
+  tries = 0;
   while (vines.length < nVines && tries++ < 500) {
-    const from = randInt(rng, 2, 88);
+    const from = randInt(rng, 2, RULES.vineMaxTop - 11);
     const len = randInt(rng, 11, 34);
     const to = from + len;
-    if (to > 99 || !free(from) || !free(to)) continue;
+    if (to > RULES.vineMaxTop || !free(from) || !free(to)) continue;
     if (rowOf(to) <= rowOf(from) || rowStarts[rowOf(from)] >= 3) continue;
     if (!tidy({ from, to })) continue;
     claim(from, to);
     const v = { type: 'vine', from, to };
     vines.push(v); starts.set(from, v);
   }
-  tries = 0;
-  while (wyrms.length < nWyrms && tries++ < 500) {
-    const from = randInt(rng, 13, 99);
-    const long = rng() < 0.15 && longWyrms === 0;
-    const len = long ? randInt(rng, 40, 55) : randInt(rng, 10, 30);
-    const to = from - len;
-    if (to < 2 || !free(from) || !free(to)) continue;
-    if (rowOf(to) >= rowOf(from) || rowStarts[rowOf(from)] >= 3) continue;
-    if (!tidy({ from, to })) continue;
-    if (len >= 40) longWyrms++;
-    claim(from, to);
-    const w = { type: 'wyrm', from, to };
-    wyrms.push(w); starts.set(from, w);
-  }
+
   return { vines, wyrms, starts };
 }
 
@@ -149,7 +195,9 @@ function generateBoard(code) {
   const rng = makeRng(hashString(norm));
   let board = null, stats = null, attempts = 0;
   for (attempts = 1; attempts <= 200; attempts++) {
-    board = placeLinks(rng);
+    const placed = placeLinks(rng);
+    if (!placed) continue;
+    board = placed;
     stats = simulate(board, rng);
     if (stats.mean >= BALANCE.minMean && stats.mean <= BALANCE.maxMean && stats.p90 <= BALANCE.maxP90) break;
   }
@@ -189,7 +237,7 @@ function unlockedLevels(maxPlayed, unlockAll) {
   return ids;
 }
 
-const API = { crosses, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
+const API = { RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
   squareToCell, rowOf, generateBoard, simulate, BALANCE, rollDie, rollDice, rollD10,
   rwmValue, rwmWinner, aiPlace, unlockedLevels, CODE_WORDS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

@@ -12,7 +12,7 @@ const COLOURS = [
   { c: '#8e24aa', n: 'Purple' }, { c: '#ef6c00', n: 'Orange' }, { c: '#00897b', n: 'Teal' }, { c: '#d81b60', n: 'Pink' }];
 const AI_NAMES = ['Cinder', 'Sleet', 'Puff', 'Smoulder'];
 const AI_ACCURACY = 0.88;                // chance a computer player gets a sum right
-const DELAY = { ai: 750, step: 150, slide: 750, spin: 80, hold: 1700 };
+const DELAY = { ai: 750, step: 150, slide: 750, spin: 80, hold: 900, inlineHold: 765 };
 // Game speed: every pause is multiplied by the chosen factor.
 const SPEEDS = [{ n: 'Very calm', f: 2.6 }, { n: 'Calm', f: 1.9 }, { n: 'Normal', f: 1.4 }, { n: 'Quick', f: 1.0 }, { n: 'Sonic', f: 0.6 }];
 const SPEED_KEY = 'wyrms-and-vines.speed';
@@ -200,7 +200,7 @@ function drawBoard(board) {
   };
   board.vines.forEach((v, i) => {
     const a = cellCentre(v.from), b = cellCentre(v.to);
-    const d = curve(a, b, i % 2 ? 3 : -3);
+    const d = curve(a, b, i % 2 ? 1.5 : -1.5);
     mk('path', { d, fill: 'none', stroke: '#2e6b30', 'stroke-width': 2.2, 'stroke-linecap': 'round', opacity: .9 });
     const p = mk('path', { d, fill: 'none', stroke: '#66bb6a', 'stroke-width': 1.1, 'stroke-linecap': 'round' });
     mk('circle', { cx: a.x, cy: a.y, r: 2.2, fill: '#8d6e3f', stroke: '#2e6b30', 'stroke-width': .6 });
@@ -213,7 +213,7 @@ function drawBoard(board) {
   });
   board.wyrms.forEach((w, i) => {
     const a = cellCentre(w.from), b = cellCentre(w.to);
-    const d = curve(a, b, i % 2 ? 4 : -4);
+    const d = curve(a, b, i % 2 ? 2 : -2);
     mk('path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
     mk('path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
     mk('circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: '#3a1145', 'stroke-width': .5 });
@@ -320,7 +320,7 @@ async function showRoll(g, who, sidesList, values, result) {
     dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
     SFX.play('dice-land');
     res.innerHTML = result;
-    await wait(g, DELAY.hold * 0.45);
+    await wait(g, DELAY.inlineHold);
     return;
   }
   const ov = $('#rollOverlay');
@@ -334,7 +334,7 @@ async function showRoll(g, who, sidesList, values, result) {
   card.appendChild(res);
   ov.appendChild(card);
   ov.classList.add('show');
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < 7; k++) {
     dice.forEach((d, i) => { d.textContent = rnd(sidesList[i]); });
     await wait(g, DELAY.spin);
   }

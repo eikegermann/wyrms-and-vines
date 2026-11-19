@@ -35,14 +35,17 @@ The game speed can be set on the setup screen and changed during a game; the cho
 
 ## Board codes
 
-A board code like `FERN-42` is the seed for the board generator: the same code always makes the same board, and nothing is stored. Each new board follows a few rules:
-- 7–9 vines and 7–9 wyrms.
-- Nothing on square 1 or square 100.
+A board code like `FERN-42` is the seed for the board generator: the same code always makes the same board, and nothing is stored. Each new board follows these rules:
+- 7–9 vines and up to 9 wyrms.
+- Nothing on square 1 or 100.
 - No square is both an end and a start.
-- No two vines or wyrms cross.
-- At most three vines or wyrms start in any row, and at most one wyrm is long.
+- No two vines or wyrms cross, and they keep a little space between them (`linkSpacing`).
+- At most three vines or wyrms start in any row.
+- No vine reaches the top row: vines end on 90 or lower.
+- The last two rows (81–99) always have 2–4 wyrm heads, at least one on 95–99. One of them is mild (a 10–16 square drop) and one is a proper ouch (22–35).
+- Wyrm heads keep their distance, and meaner pairs sit further apart: the minimum gap is 2 + (combined drop − 5) ÷ 5, rounded down. For example, two 10-square wyrms need 5 squares between their heads, and a 12 and a 30 need 9.
 
-The generator then plays 1,500 quick games in the background and keeps the board only if games last a sensible number of turns.
+The generator then plays 1,500 quick games in the background and keeps the board only if games last a sensible number of turns. The rules live in `RULES` at the top of `js/logic.js`, and `node tests/board_rules.js` checks them on 1,000 boards.
 
 ## Sounds
 
