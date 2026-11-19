@@ -4,7 +4,11 @@ A snakes-and-ladders-style race with maths puzzles. Climb the vines, dodge the w
 
 ## Play
 
-Play at **https://eikegermann.github.io/wyrms-and-vines/** (once GitHub Pages is on), or open `index.html` in a browser. No install needed.
+Play at **https://eikegermann.github.io/wyrms-and-vines/**, or open `index.html` in a browser. No install needed.
+
+On an iPad, open the link in Safari, tap Share, then **Add to Home Screen**. Started from that icon, the game runs fullscreen without Safari's bars.
+
+The game speed can be set on the setup screen and changed during a game; the choice is remembered.
 
 ## Rules
 

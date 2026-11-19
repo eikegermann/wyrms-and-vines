@@ -12,6 +12,24 @@ const COLOURS = [
 const AI_NAMES = ['Cinder', 'Sleet', 'Puff', 'Smoulder'];
 const AI_ACCURACY = 0.88;                // chance a computer player gets a sum right
 const DELAY = { ai: 750, step: 150, slide: 750, spin: 80, hold: 1700 };
+// Game speed: every pause is multiplied by the chosen factor.
+const SPEEDS = [{ n: 'Very calm', f: 2.6 }, { n: 'Calm', f: 1.9 }, { n: 'Normal', f: 1.4 }, { n: 'Quick', f: 1.0 }, { n: 'Sonic', f: 0.6 }];
+const SPEED_KEY = 'wyrms-and-vines.speed';
+let speedIdx = (() => { try { const v = +localStorage.getItem(SPEED_KEY); return v >= 1 && v <= 5 ? v : 3; } catch (e) { return 3; } })();
+let testFactor = null;
+const speed = () => testFactor ?? SPEEDS[speedIdx - 1].f;
+function setSpeed(i) {
+  speedIdx = i;
+  try { localStorage.setItem(SPEED_KEY, i); } catch (e) { /* storage unavailable */ }
+  document.querySelectorAll('.speedRange').forEach(r => { r.value = i; });
+  document.querySelectorAll('.speedName').forEach(s => { s.textContent = SPEEDS[i - 1].n; });
+}
+document.querySelectorAll('.speedRange').forEach(r => { r.oninput = () => setSpeed(+r.value); });
+setSpeed(speedIdx);
+
+// "a 5", "an 8", "an 11", "an 18", "an 80"
+const an = n => (/^8/.test(String(n)) || n === 11 || n === 18) ? 'an' : 'a';
+const rolled = (who, vals) => `${esc(who)} rolled ${vals.map(v => `${an(v)} <b>${v}</b>`).join(' and ')}!`;
 
 // ---------- Saved data: only which levels each name has played ----------
 const STORE_KEY = 'wyrms-and-vines.played';
@@ -99,7 +117,7 @@ $('#logBtn').onclick = () => {
   $('#logBtn').textContent = open ? '📜 Hide log' : '📜 Show log';
   if (open) $('#log').scrollTop = $('#log').scrollHeight;
 };
-$('#quitBtn').onclick = () => { G = null; show('setup'); renderSetup(); };
+$('#quitBtn').onclick = () => { G = null; closeEncounter(); $('#rollOverlay').classList.remove('show'); show('setup'); renderSetup(); };
 
 // ===================================================================
 // Game
@@ -114,6 +132,7 @@ function startGame(code, players) {
   $('#log').classList.remove('open'); $('#logBtn').textContent = '📜 Show log';
   $('#log').innerHTML = '';
   $('#tokens').innerHTML = '';
+  closeEncounter(); $('#rollOverlay').classList.remove('show');
   drawBoard(board);
   show('game');
   renderPlayers(); placeTokens();
@@ -123,7 +142,7 @@ function startGame(code, players) {
 }
 
 const alive = g => { if (G !== g) throw new Quit(); };
-const wait = (g, ms) => new Promise(r => setTimeout(r, ms)).then(() => alive(g));
+const wait = (g, ms) => new Promise(r => setTimeout(r, ms * speed())).then(() => alive(g));
 
 function log(html) {
   const d = el('div', null, html);
@@ -217,14 +236,23 @@ function renderPlayers() {
 }
 
 // ---------- Stage helpers ----------
-const stage = () => $('#stage');
+// Most things happen in the side panel; vines, wyrms and duels open a big window in the middle.
+let stageSel = '#stage';
+const stage = () => $(stageSel);
+function openEncounter(kind) { $('#encounter').className = 'show ' + kind; $('#encCard').innerHTML = ''; stageSel = '#encCard'; }
+function closeEncounter() { $('#encounter').className = ''; stageSel = '#stage'; }
+// Final card of an encounter: big emoji and what happened.
+async function resultCard(g, auto, emoji, text) {
+  setStage(`<div class="bigEmoji">${emoji}</div>`, `<div class="resultText">${text}</div>`);
+  await choose(g, [{ label: 'Carry on ▶', value: 1, cls: 'gold' }], auto ? 1 : undefined, DELAY.ai * 2.5);
+}
 function setStage(title, msg) {
   stage().innerHTML = `<div class="title">${title}</div><div class="msg">${msg || ''}</div>`;
 }
 function addMsg(html) { stage().appendChild(el('div', 'msg', html)); }
 
 // Show buttons; a computer player picks aiValue after a pause.
-function choose(g, options, aiValue) {
+function choose(g, options, aiValue, aiDelay = DELAY.ai) {
   const row = el('div', 'actions');
   stage().appendChild(row);
   return new Promise((resolve, reject) => {
@@ -235,7 +263,7 @@ function choose(g, options, aiValue) {
       row.appendChild(b);
       if (i === 0 && aiValue === undefined) setTimeout(() => b.focus(), 0);
     });
-    if (aiValue !== undefined) wait(g, DELAY.ai).then(() => resolve(aiValue), reject);
+    if (aiValue !== undefined) wait(g, aiDelay).then(() => resolve(aiValue), reject);
   }).then(v => { alive(g); return v; });
 }
 
@@ -262,6 +290,18 @@ function askNumber(g) {
 // It stays up for a moment (click to close it sooner); the dice also stay in the side panel.
 async function showRoll(g, who, sidesList, values, result) {
   const label = sidesList.length === 2 && sidesList[0] === sidesList[1] ? `2d${sidesList[0]}` : sidesList.map(s => 'd' + s).join(' + ');
+  const rnd = s => s === 10 ? Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * s);
+  if (stageSel === '#encCard') {              // inside the big window: roll right there
+    const box = el('div', 'dice big');
+    const dice = sidesList.map(() => { const d = el('div', 'die rolling', '?'); box.appendChild(d); return d; });
+    const res = el('div', 'rollResult', '&nbsp;');
+    stage().append(box, res);
+    for (let k = 0; k < 9; k++) { dice.forEach((d, i) => { d.textContent = rnd(sidesList[i]); }); await wait(g, DELAY.spin); }
+    dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
+    res.innerHTML = result;
+    await wait(g, DELAY.hold * 0.45);
+    return;
+  }
   const ov = $('#rollOverlay');
   ov.innerHTML = '';
   const card = el('div', 'rollCard');
@@ -273,14 +313,13 @@ async function showRoll(g, who, sidesList, values, result) {
   card.appendChild(res);
   ov.appendChild(card);
   ov.classList.add('show');
-  const rnd = s => s === 10 ? Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * s);
   for (let k = 0; k < 9; k++) {
     dice.forEach((d, i) => { d.textContent = rnd(sidesList[i]); });
     await wait(g, DELAY.spin);
   }
   dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
   res.innerHTML = result;
-  await new Promise(r => { const t = setTimeout(r, DELAY.hold); ov.onclick = () => { clearTimeout(t); r(); }; });
+  await new Promise(r => { const t = setTimeout(r, DELAY.hold * speed()); ov.onclick = () => { clearTimeout(t); r(); }; });
   ov.classList.remove('show'); ov.onclick = null;
   alive(g);
   const small = el('div', 'dice');
@@ -299,7 +338,8 @@ async function walk(g, p, to) {
 }
 async function slide(g, p, to) {
   const toks = document.querySelectorAll('.token');
-  toks.forEach(t => t.style.transition = `left ${DELAY.slide}ms ease, top ${DELAY.slide}ms ease`);
+  const ms = Math.round(DELAY.slide * speed());
+  toks.forEach(t => t.style.transition = `left ${ms}ms ease, top ${ms}ms ease`);
   p.pos = to; placeTokens(); renderPlayers();
   await wait(g, DELAY.slide + 100);
   toks.forEach(t => t.style.transition = '');
@@ -322,7 +362,7 @@ async function turn(g, p) {
   setStage(`${p.ai ? '🤖 ' : ''}${esc(p.name)}'s turn`, `On square <b>${p.pos}</b>.`);
   await choose(g, [{ label: '🎲 Roll to move', value: 1, cls: 'gold' }], p.ai ? 1 : undefined);
   const r = W.rollDie(6);
-  await showRoll(g, p.name, [6], [r], `<b>${r}</b>! Move ${r} square${r > 1 ? 's' : ''}.`);
+  await showRoll(g, p.name, [6], [r], `${rolled(p.name, [r])}<div class="rollSub">Move ${r} square${r > 1 ? 's' : ''}.</div>`);
   const dest = Math.min(p.pos + r, W.SIZE);
   log(`${esc(p.name)} rolls ${r} and moves to ${dest}.`);
   await walk(g, p, dest);
@@ -331,7 +371,10 @@ async function turn(g, p) {
   const link = g.board.starts.get(p.pos);
   if (link) {
     await wait(g, 300);
+    setStage(link.type === 'vine' ? `🌿 ${esc(p.name)} found a vine!` : `🐲 A wyrm has ${esc(p.name)}!`, '');
+    openEncounter(link.type);
     const solved = await puzzle(g, p, link);
+    closeEncounter();
     if (link.type === 'vine' && solved) { log(`🌿 ${esc(p.name)} climbs the vine to ${link.to}!`); await slide(g, p, link.to); }
     if (link.type === 'wyrm' && !solved) { log(`🐲 ${esc(p.name)} slides down the wyrm to ${link.to}.`); await slide(g, p, link.to); }
     if (link.type === 'vine' && !solved) log(`${esc(p.name)}'s vine snapped.`);
@@ -363,12 +406,13 @@ async function puzzle(g, p, link) {
       (heat ? `Vine: <b>${total}</b> of ${T}` : `Grip: <b>${total}</b>`));
     await choose(g, [{ label: `🎲 Roll ${W.diceLabel(L.dice)}`, value: 1, cls: heat ? 'vine' : 'wyrm' }], p.ai ? 1 : undefined);
     const rolls = W.rollDice(L.dice);
-    await showRoll(g, p.name, L.dice, rolls, rolls.length === 2 ? `<b>${rolls[0]}</b> and <b>${rolls[1]}</b>!` : `<b>${rolls[0]}</b>!`);
+    await showRoll(g, p.name, L.dice, rolls, rolled(p.name, rolls));
     const sum = rolls.reduce((a, b) => a + b, 0);
 
     if (!heat && sum >= total) {
-      addMsg(`You rolled <b>${sum}</b>, that's enough to shake it off completely!`);
-      await wait(g, 1300);
+      addMsg(`That's <b>${sum}</b>, enough to shake it off completely!`);
+      await wait(g, 1100);
+      await resultCard(g, p.ai, '😄', `${esc(p.name)} shook off the wyrm!`);
       return true;
     }
     const correct = heat ? total + sum : total - sum;
@@ -390,15 +434,19 @@ async function puzzle(g, p, link) {
       else if (attempt === 0) addMsg(`<span class="bad">✘ Not quite. Have another go!</span>`);
     }
     if (!right) {
-      addMsg(`<span class="bad">✘ It was ${correct}.</span> ${heat ? 'The vine snaps!' : 'The wyrm drags you down!'}`);
-      await wait(g, 1700);
+      addMsg(`<span class="bad">✘ It was ${correct}.</span>`);
+      await wait(g, 1300);
+      await resultCard(g, p.ai, heat ? '😢' : '🐲', heat
+        ? `The vine snapped! ${esc(p.name)} stays on square ${link.from}.`
+        : `The wyrm drags ${esc(p.name)} down to square ${link.to}!`);
       return false;
     }
     total = correct;
     await wait(g, 700);
     if (heat && total >= T) {
-      addMsg(`🌿 The vine reaches ${T}. Up you go!`);
-      await wait(g, 1000);
+      addMsg(`The vine reaches ${T}!`);
+      await wait(g, 900);
+      await resultCard(g, p.ai, '🌿', `${esc(p.name)} climbs up to square ${link.to}!`);
       return true;
     }
   }
@@ -410,11 +458,18 @@ async function puzzle(g, p, link) {
 // The winner steps forward one square (no vine or wyrm triggers). A tie: no winner.
 async function duel(g, p, others) {
   const names = others.map(o => esc(o.name)).join(' and ');
+  setStage(`⚔️ ${esc(p.name)} meets ${names}!`, '');
+  openEncounter('duel');
   setStage(`⚔️ ${esc(p.name)} landed on ${names}!`, 'Challenge to a read-write-make duel? The winner steps forward one square.');
   const opts = others.map(o => ({ label: `⚔️ Duel ${esc(o.name)}`, value: o, cls: 'gold' }));
   opts.push({ label: 'No thanks', value: null, cls: 'ghost' });
   const opp = await choose(g, opts, p.ai ? others[0] : undefined);
-  if (!opp) { log(`${esc(p.name)} lets ${names} be.`); return; }
+  if (!opp) {
+    log(`🕊️ ${esc(p.name)} lets ${names} be.`);
+    await resultCard(g, true, '🕊️', `${esc(p.name)} chose to keep the peace.`);
+    closeEncounter();
+    return;
+  }
 
   setStage(`⚔️ ${esc(p.name)} challenges ${esc(opp.name)}!`, `${esc(opp.name)}, you choose: does the <b>highest</b> or the <b>lowest</b> number win?`);
   const goal = await choose(g, [
@@ -452,14 +507,14 @@ async function duel(g, p, others) {
       render(`⚔️ ${esc(d.name)}'s roll`, di, null, false);
       await choose(g, [{ label: '🎲 Roll d10', value: 1, cls: 'gold' }], d.ai ? 1 : undefined);
       const digit = W.rollD10();
-      await showRoll(g, d.name, [10], [digit], `<b>${digit}</b>! Where will it go?`);
+      await showRoll(g, d.name, [10], [digit], `${rolled(d.name, [digit])}<div class="rollSub">Where will it go?</div>`);
       let where;
       if (d.ai) {
-        render(`⚔️ ${esc(d.name)} rolled ${digit}`, di, digit, false);
+        render(`⚔️ ${esc(d.name)} rolled ${an(digit)} ${digit}`, di, digit, false);
         await wait(g, DELAY.ai);
         where = W.aiPlace(slots[di], digit, goal);
       } else {
-        const btns = render(`⚔️ ${esc(d.name)} rolled ${digit}`, di, digit, true);
+        const btns = render(`⚔️ ${esc(d.name)} rolled ${an(digit)} ${digit}`, di, digit, true);
         addMsg('Tap where the ' + digit + ' goes.');
         where = await new Promise(res => btns.forEach(b => b.onclick = () => res(+b.dataset.slot)));
         alive(g);
@@ -471,16 +526,18 @@ async function duel(g, p, others) {
   const res = W.rwmWinner(slots[0], slots[1], goal);
   const v0 = W.rwmValue(slots[0]), v1 = W.rwmValue(slots[1]);
   render('⚔️ The duel is over!', -1, null, false);
+  addMsg(`${esc(p.name)}: <b>${v0}</b> · ${esc(opp.name)}: <b>${v1}</b>`);
+  await wait(g, 1600);
   if (res < 0) {
-    addMsg(`Both made <b>${v0}</b>. A tie, no winner this time!`);
     log(`It's a tie: ${v0} and ${v1}.`);
-    await choose(g, [{ label: 'Carry on', value: 1 }], p.ai && opp.ai ? 1 : undefined);
+    await resultCard(g, p.ai && opp.ai, '🤝', `Both made ${v0}. A tie, no winner this time!`);
+    closeEncounter();
     return;
   }
   const winner = duelists[res];
-  addMsg(`${esc(winner.name)} wins with <b>${W.rwmValue(slots[res])}</b> against ${W.rwmValue(slots[1 - res])}, and steps forward!`);
   log(`🏅 ${esc(winner.name)} wins the duel (${v0} vs ${v1}) and steps forward.`);
-  await choose(g, [{ label: 'Carry on', value: 1 }], p.ai && opp.ai ? 1 : undefined);
+  await resultCard(g, p.ai && opp.ai, '🏅', `${esc(winner.name)} wins with ${W.rwmValue(slots[res])} against ${W.rwmValue(slots[1 - res])}, and steps forward!`);
+  closeEncounter();
   await walk(g, winner, Math.min(winner.pos + 1, W.SIZE));
   if (winner.pos >= W.SIZE) win(g, winner);
 }
@@ -508,5 +565,5 @@ function win(g, p) {
 
 renderSetup();
 // For tests and the browser console
-window.WVGame = { get state() { return G; }, DELAY };
+window.WVGame = { get state() { return G; }, DELAY, setTestFactor(f) { testFactor = f; } };
 })();

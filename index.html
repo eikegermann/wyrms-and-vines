@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wyrms &amp; Vines">
+<meta name="theme-color" content="#1d2a22">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Wyrms &amp; Vines</title>
 <link rel="stylesheet" href="css/game.css">
 </head>
@@ -33,6 +40,11 @@
     <p class="hint">Levels 4 and 5 open once that name has played a game at level 3 (winning not needed). Adult is always open.</p>
   </div>
 
+  <div class="card">
+    <h2>Game speed</h2>
+    <div class="row speedRow">🐢 <input type="range" class="speedRange" min="1" max="5" step="1"> 🐇 <span class="speedName"></span></div>
+  </div>
+
   <button class="btn big go" id="startBtn">Start the game!</button>
 </section>
 
@@ -51,12 +63,14 @@
       <span><button class="btn small ghost" id="logBtn">📜 Show log</button>
       <button class="btn small ghost" id="quitBtn">↩ Setup</button></span>
     </div>
+    <div class="row speedRow small">Speed 🐢 <input type="range" class="speedRange" min="1" max="5" step="1"> 🐇 <span class="speedName"></span></div>
     <div id="playerList"></div>
     <div id="stage"></div>
     <div id="log"></div>
   </aside>
 </section>
 
+<div id="encounter"><div id="encCard"></div></div>
 <div id="rollOverlay"></div>
 
 <script src="js/logic.js"></script>

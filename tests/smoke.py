@@ -4,7 +4,7 @@ import pathlib, sys
 from playwright.sync_api import sync_playwright
 
 URL = (pathlib.Path(__file__).resolve().parent.parent / 'index.html').as_uri()
-FAST = "Object.assign(WVGame.DELAY,{ai:5,step:1,slide:5,spin:1,hold:5})"
+FAST = "WVGame.setTestFactor(0.01)"
 
 def check_errors(errors):
     if errors:
@@ -39,14 +39,14 @@ with sync_playwright() as pw:
     while steps < 3000:
         steps += 1
         if page.locator('#stage .title:has-text("wins")').count(): break
-        ans = page.locator('#stage .answer input:not([disabled])')
+        ans = page.locator(':is(#stage,#encCard) .answer input:not([disabled])')
         if ans.count():
-            q = page.locator('#stage .msg b').filter(has_text='= ?').last.inner_text()
+            q = page.locator(':is(#stage,#encCard) .msg b').filter(has_text='= ?').last.inner_text()
             expr = q.replace('= ?', '').replace('−', '-').strip()
             ans.fill(str(eval(expr))); ans.press('Enter'); continue
-        slot = page.locator('#stage button.slot.pick')
+        slot = page.locator(':is(#stage,#encCard) button.slot.pick')
         if slot.count(): slot.first.click(); continue
-        btn = page.locator('#stage .actions button:not([disabled])')
+        btn = page.locator(':is(#stage,#encCard) .actions button:not([disabled])')
         if btn.count(): btn.first.click(); continue
         page.wait_for_timeout(20)
     print('human game:', page.inner_text('#stage .title'), 'steps', steps)
