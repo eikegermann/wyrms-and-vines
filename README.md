@@ -44,11 +44,16 @@ A board code like `FERN-42` is the seed for the board generator: the same code a
 
 The generator then plays 1,500 quick games in the background and keeps the board only if games last a sensible number of turns.
 
+## Sounds
+
+Sound effects are files in `sounds/`. See [sounds/README.md](sounds/README.md) for the list of names. Missing sounds are skipped, and there's a mute button.
+
 ## Code layout
 
 - `index.html`, `css/game.css`
 - `js/logic.js`: pure game logic with no screen code: levels, seeded board generation and balance check, dice, read-write-make scoring, computer strategy, unlocks. It also runs in Node.
-- `js/game.js`: setup screen, board drawing, turns, puzzles, duels.
+- `js/sound.js`: plays sound effects from `sounds/` (missing files are skipped).
+- `js/game.js`: title card, setup screen, board drawing, turns, puzzles, duels.
 - `tests/smoke.py`: plays full games in a headless browser, both all-computer games and a human answering every puzzle, and checks unlocks. To run it: `pip install playwright && playwright install chromium`, then `python tests/smoke.py`.
 
 All rights reserved.

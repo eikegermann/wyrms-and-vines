@@ -2,6 +2,7 @@
 (function () {
 'use strict';
 const W = window.WV;
+const SFX = window.WVSound || { play() {}, setEnabled() {}, enabled: false };
 const $ = s => document.querySelector(s);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -112,6 +113,18 @@ $('#startBtn').onclick = () => {
   if (!code) { code = W.randomCode(); $('#codeInput').value = code; }
   startGame(code, ps);
 };
+function renderSoundBtns() {
+  document.querySelectorAll('.soundBtn').forEach(b => {
+    const small = b.classList.contains('small');
+    b.textContent = SFX.enabled ? (small ? '🔊' : '🔊 Sound on') : (small ? '🔇' : '🔇 Sound off');
+    b.title = SFX.enabled ? 'Sound on (tap to mute)' : 'Sound off (tap to turn on)';
+  });
+}
+document.querySelectorAll('.soundBtn').forEach(b => { b.onclick = () => { SFX.setEnabled(!SFX.enabled); renderSoundBtns(); }; });
+renderSoundBtns();
+$('#titleGo').onclick = () => $('#titleOverlay').classList.remove('show');
+$('#howBtn').onclick = () => { $('#titleOverlay').classList.add('show'); $('#titleCard').scrollTop = 0; };
+
 $('#logBtn').onclick = () => {
   const open = $('#log').classList.toggle('open');
   $('#logBtn').textContent = open ? '📜 Hide log' : '📜 Show log';
@@ -136,6 +149,7 @@ function startGame(code, players) {
   drawBoard(board);
   show('game');
   renderPlayers(); placeTokens();
+  SFX.play('game-start');
   log(`New game on board <b>${board.code}</b>. ${board.vines.length} vines, ${board.wyrms.length} wyrms.`);
   const me = G;
   play(me).catch(e => { if (!(e instanceof Quit)) throw e; });
@@ -239,10 +253,15 @@ function renderPlayers() {
 // Most things happen in the side panel; vines, wyrms and duels open a big window in the middle.
 let stageSel = '#stage';
 const stage = () => $(stageSel);
-function openEncounter(kind) { $('#encounter').className = 'show ' + kind; $('#encCard').innerHTML = ''; stageSel = '#encCard'; }
+const ENCOUNTER_SOUND = { vine: 'vine-rustle', wyrm: 'wyrm-hiss', duel: 'duel-start' };
+function openEncounter(kind) {
+  $('#encounter').className = 'show ' + kind; $('#encCard').innerHTML = ''; stageSel = '#encCard';
+  if (ENCOUNTER_SOUND[kind]) SFX.play(ENCOUNTER_SOUND[kind]);
+}
 function closeEncounter() { $('#encounter').className = ''; stageSel = '#stage'; }
 // Final card of an encounter: big emoji and what happened.
-async function resultCard(g, auto, emoji, text) {
+async function resultCard(g, auto, emoji, text, sound) {
+  if (sound) SFX.play(sound);
   setStage(`<div class="bigEmoji">${emoji}</div>`, `<div class="resultText">${text}</div>`);
   await choose(g, [{ label: 'Carry on ▶', value: 1, cls: 'gold' }], auto ? 1 : undefined, DELAY.ai * 2.5);
 }
@@ -291,6 +310,7 @@ function askNumber(g) {
 async function showRoll(g, who, sidesList, values, result) {
   const label = sidesList.length === 2 && sidesList[0] === sidesList[1] ? `2d${sidesList[0]}` : sidesList.map(s => 'd' + s).join(' + ');
   const rnd = s => s === 10 ? Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * s);
+  SFX.play('dice-shake');
   if (stageSel === '#encCard') {              // inside the big window: roll right there
     const box = el('div', 'dice big');
     const dice = sidesList.map(() => { const d = el('div', 'die rolling', '?'); box.appendChild(d); return d; });
@@ -298,6 +318,7 @@ async function showRoll(g, who, sidesList, values, result) {
     stage().append(box, res);
     for (let k = 0; k < 9; k++) { dice.forEach((d, i) => { d.textContent = rnd(sidesList[i]); }); await wait(g, DELAY.spin); }
     dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
+    SFX.play('dice-land');
     res.innerHTML = result;
     await wait(g, DELAY.hold * 0.45);
     return;
@@ -318,6 +339,7 @@ async function showRoll(g, who, sidesList, values, result) {
     await wait(g, DELAY.spin);
   }
   dice.forEach((d, i) => { d.classList.remove('rolling'); d.textContent = values[i]; });
+  SFX.play('dice-land');
   res.innerHTML = result;
   await new Promise(r => { const t = setTimeout(r, DELAY.hold * speed()); ov.onclick = () => { clearTimeout(t); r(); }; });
   ov.classList.remove('show'); ov.onclick = null;
@@ -332,6 +354,7 @@ async function walk(g, p, to) {
   while (p.pos !== to) {
     p.pos += to > p.pos ? 1 : -1;
     placeTokens();
+    SFX.play('step', 0.5);
     await wait(g, DELAY.step);
   }
   renderPlayers();
@@ -412,7 +435,7 @@ async function puzzle(g, p, link) {
     if (!heat && sum >= total) {
       addMsg(`That's <b>${sum}</b>, enough to shake it off completely!`);
       await wait(g, 1100);
-      await resultCard(g, p.ai, '😄', `${esc(p.name)} shook off the wyrm!`);
+      await resultCard(g, p.ai, '😄', `${esc(p.name)} shook off the wyrm!`, 'wyrm-shake-off');
       return true;
     }
     const correct = heat ? total + sum : total - sum;
@@ -430,6 +453,7 @@ async function puzzle(g, p, link) {
         ans = await askNumber(g);
       }
       right = ans === correct;
+      SFX.play(right ? 'correct' : 'wrong');
       if (right) addMsg(`<span class="good">✔ Yes, ${correct}!</span>`);
       else if (attempt === 0) addMsg(`<span class="bad">✘ Not quite. Have another go!</span>`);
     }
@@ -438,7 +462,7 @@ async function puzzle(g, p, link) {
       await wait(g, 1300);
       await resultCard(g, p.ai, heat ? '😢' : '🐲', heat
         ? `The vine snapped! ${esc(p.name)} stays on square ${link.from}.`
-        : `The wyrm drags ${esc(p.name)} down to square ${link.to}!`);
+        : `The wyrm drags ${esc(p.name)} down to square ${link.to}!`, heat ? 'vine-snap' : 'wyrm-slide');
       return false;
     }
     total = correct;
@@ -446,7 +470,7 @@ async function puzzle(g, p, link) {
     if (heat && total >= T) {
       addMsg(`The vine reaches ${T}!`);
       await wait(g, 900);
-      await resultCard(g, p.ai, '🌿', `${esc(p.name)} climbs up to square ${link.to}!`);
+      await resultCard(g, p.ai, '🌿', `${esc(p.name)} climbs up to square ${link.to}!`, 'vine-climb');
       return true;
     }
   }
@@ -466,7 +490,7 @@ async function duel(g, p, others) {
   const opp = await choose(g, opts, p.ai ? others[0] : undefined);
   if (!opp) {
     log(`🕊️ ${esc(p.name)} lets ${names} be.`);
-    await resultCard(g, true, '🕊️', `${esc(p.name)} chose to keep the peace.`);
+    await resultCard(g, true, '🕊️', `${esc(p.name)} chose to keep the peace.`, 'peace');
     closeEncounter();
     return;
   }
@@ -520,6 +544,7 @@ async function duel(g, p, others) {
         alive(g);
       }
       slots[di][where] = digit;
+      SFX.play('digit-place');
     }
   }
 
@@ -530,13 +555,13 @@ async function duel(g, p, others) {
   await wait(g, 1600);
   if (res < 0) {
     log(`It's a tie: ${v0} and ${v1}.`);
-    await resultCard(g, p.ai && opp.ai, '🤝', `Both made ${v0}. A tie, no winner this time!`);
+    await resultCard(g, p.ai && opp.ai, '🤝', `Both made ${v0}. A tie, no winner this time!`, 'duel-tie');
     closeEncounter();
     return;
   }
   const winner = duelists[res];
   log(`🏅 ${esc(winner.name)} wins the duel (${v0} vs ${v1}) and steps forward.`);
-  await resultCard(g, p.ai && opp.ai, '🏅', `${esc(winner.name)} wins with ${W.rwmValue(slots[res])} against ${W.rwmValue(slots[1 - res])}, and steps forward!`);
+  await resultCard(g, p.ai && opp.ai, '🏅', `${esc(winner.name)} wins with ${W.rwmValue(slots[res])} against ${W.rwmValue(slots[1 - res])}, and steps forward!`, 'duel-win');
   closeEncounter();
   await walk(g, winner, Math.min(winner.pos + 1, W.SIZE));
   if (winner.pos >= W.SIZE) win(g, winner);
@@ -551,14 +576,23 @@ function win(g, p) {
   g.players.filter(q => !q.ai).forEach(q => { const k = nameKey(q.name); played[k] = Math.max(played[k] || 0, +q.level); });
   store.set(played);
   log(`🏆 <b>${esc(p.name)} wins!</b>`);
-  setStage(`🏆 ${esc(p.name)} reaches square 100 and wins!`, `Board code: <b>${g.board.code}</b>`);
+  setStage(`🏆 ${esc(p.name)} wins!`, `Board code: <b>${g.board.code}</b>`);
+  // Big winner's card in the middle
+  openEncounter('win');
+  SFX.play('game-win');
+  const others = g.players.filter(q => q !== p).sort((a, b) => b.pos - a.pos);
+  setStage(`<div class="bigEmoji">🏆</div>`,
+    `<div class="resultText">${esc(p.name)} reaches square 100 and wins!</div>` +
+    (others.length ? `<div class="standings">${others.map(q =>
+      `<span><span style="color:${COLOURS[q.colour].c}">●</span> ${esc(q.name)}: square ${q.pos}</span>`).join('')}</div>` : '') +
+    `<div class="codeLine">Board code: <b>${g.board.code}</b></div>`);
   const row = el('div', 'actions');
   const again = el('button', 'btn gold', '🔁 Same board again');
   again.onclick = () => startGame(g.board.code, g.players.map(({ pos, ...q }) => q));
   const fresh = el('button', 'btn', '🎲 New board');
   fresh.onclick = () => startGame(W.randomCode(), g.players.map(({ pos, ...q }) => q));
   const back = el('button', 'btn ghost', '↩ Setup');
-  back.onclick = () => { G = null; $('#codeInput').value = W.randomCode(); show('setup'); renderSetup(); };
+  back.onclick = () => { G = null; closeEncounter(); $('#codeInput').value = W.randomCode(); show('setup'); renderSetup(); };
   row.append(again, fresh, back);
   stage().appendChild(row);
 }

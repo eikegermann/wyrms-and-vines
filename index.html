@@ -19,6 +19,10 @@
 <section id="setup" class="screen active">
   <h1>🐉 Wyrms &amp; Vines 🌿</h1>
   <p class="sub">Climb the vines, dodge the wyrms, first to square 100 wins.</p>
+  <div class="row center">
+    <button class="btn ghost" id="howBtn">❓ How to play</button>
+    <button class="btn ghost soundBtn">🔊 Sound on</button>
+  </div>
 
   <div class="card">
     <h2>Board</h2>
@@ -60,7 +64,8 @@
   <aside id="panel">
     <div class="topline">
       <span>Board <b id="codeShow"></b></span>
-      <span><button class="btn small ghost" id="logBtn">📜 Show log</button>
+      <span><button class="btn small ghost soundBtn">🔊</button>
+      <button class="btn small ghost" id="logBtn">📜 Show log</button>
       <button class="btn small ghost" id="quitBtn">↩ Setup</button></span>
     </div>
     <div class="row speedRow small">Speed 🐢 <input type="range" class="speedRange" min="1" max="5" step="1"> 🐇 <span class="speedName"></span></div>
@@ -70,10 +75,35 @@
   </aside>
 </section>
 
+<!-- ===== Title card ===== -->
+<div id="titleOverlay" class="show">
+  <div id="titleCard">
+    <div class="bigEmoji">🐉🌿</div>
+    <h1>Wyrms &amp; Vines</h1>
+    <p class="lead">A dice race to square 100 with a little maths along the way. For 1 to 4 players, kids and grown-ups together, and the computer can join in too.</p>
+    <h2>How it works</h2>
+    <ul>
+      <li>🎲 <b>Roll and move.</b> Everyone moves with one ordinary die.</li>
+      <li>🌿 <b>Land on a vine's root?</b> Roll your dice and add them up to grow the vine to your target. Get there and you climb up!</li>
+      <li>🐲 <b>Land on a wyrm's head?</b> Its grip starts at your target. Roll and take away until it reaches 0, or slide down its back.</li>
+      <li>✏️ <b>Got a sum wrong?</b> You get one more go at each sum.</li>
+      <li>⚔️ <b>Land on another player?</b> Challenge them to a <i>read-write-make</i> duel: roll a ten-sided die three times and place each digit as hundreds, tens or ones. The challenged player decides if the highest or lowest number wins. The winner steps forward one square.</li>
+    </ul>
+    <h2>Getting started</h2>
+    <ol>
+      <li>For each player, pick a colour, type a name and choose a level. Level 1 adds one die up to 15; the Adult level adds big dice up to 200, so grown-ups don't breeze through. Levels 4 and 5 unlock once a player has played a game at level 3.</li>
+      <li>Add a computer player if you like, set the game speed, and press <b>Start the game!</b></li>
+    </ol>
+    <p class="hint">On an iPad: tap Share, then <b>Add to Home Screen</b> to play fullscreen. Every board has a code (like FERN-42); type it in to play the same board again.</p>
+    <div class="actions"><button class="btn gold big" id="titleGo">Let's play! ▶</button></div>
+  </div>
+</div>
+
 <div id="encounter"><div id="encCard"></div></div>
 <div id="rollOverlay"></div>
 
 <script src="js/logic.js"></script>
+<script src="js/sound.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

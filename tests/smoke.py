@@ -4,7 +4,7 @@ import pathlib, sys
 from playwright.sync_api import sync_playwright
 
 URL = (pathlib.Path(__file__).resolve().parent.parent / 'index.html').as_uri()
-FAST = "WVGame.setTestFactor(0.01)"
+FAST = "WVGame.setTestFactor(0.01); document.querySelector('#titleOverlay').classList.remove('show')"
 
 def check_errors(errors):
     if errors:
@@ -63,6 +63,7 @@ with sync_playwright() as pw:
     lvl4 = page.locator('.prow').first.locator('select').first.locator('option[value="4"]')
     adult = page.locator('.prow').first.locator('select').first.locator('option[value="6"]')
     assert not lvl4.is_disabled() and not adult.is_disabled(), 'level 4 and adult open'
+    page.click('#titleGo')
     page.check('#unlockAll')
     assert not page.locator('.prow').first.locator('select').first.locator('option[value="6"]').is_disabled()
     print('unlocks OK')
