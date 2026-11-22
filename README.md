@@ -62,6 +62,10 @@ The generator then plays 1,500 quick games in the background and keeps the board
 
 Sound effects are files in `sounds/`. See [sounds/README.md](sounds/README.md) for the list of names. Missing sounds are skipped, and there's a mute button.
 
+## Decisions
+
+The reasons behind the rules and the design are recorded as architecture decision records in [docs/adr](docs/adr/README.md).
+
 ## Code layout
 
 - `index.html`, `css/game.css`
