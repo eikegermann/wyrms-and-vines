@@ -35,7 +35,7 @@ const ri = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony,
-  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0 } = {}) {
+  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0, fortifiedPuzzle = null } = {}) {
   // colonies appear more often in bigger games: + perExtraPlayer for every player above 3
   base += perExtraPlayer * Math.max(0, nPlayers - 3);
   const b = copyBoard(pick(BOARDS));
@@ -43,7 +43,7 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
   let hunters = useHunters ? Array.from({ length: Math.min(3, Math.max(2, nPlayers)) }, () => ({ pos: ri(2, 98) })) : [];
   const huntersDue = [];
   let colonies = [];                 // {pos, target, eaten, progress, pause, egg: rounds left | null, laid}
-  const st = { colonies: 0, starved: 0, vinesEaten: 0, eggs: 0, hatched: 0, eggFailed: 0, tunnels: 0, destroyed: 0 };
+  const st = { slides: 0, fortSlides: 0, tunnelSlides: 0, flew: 0, colonies: 0, starved: 0, vinesEaten: 0, eggs: 0, hatched: 0, eggFailed: 0, tunnels: 0, destroyed: 0 };
 
   const occupied = () => {
     const s = new Set(players.map(p => p.pos));
@@ -93,16 +93,20 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
   for (let r = 1; r <= MAX_ROUNDS; r++) {
     for (const p of players) {
       p.pos = Math.min(100, p.pos + d6());
-      if (p.pos >= 100) return { ...st, rounds: r, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length };
+      if (p.pos >= 100) return { ...st, rounds: r, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length, fortLeft: b.wyrms.filter(w => w.fortified).length };
       const t = b.tunnels.find(x => x.from === p.pos);
-      if (t) { p.pos = t.to; continue; }
+      if (t) { p.pos = t.to; st.tunnelSlides++; continue; }
       const link = b.starts.get(p.pos);
       if (link) {
-        const solved = Math.random() < puzzle;
+        // Fortified wyrms (hatched from a vine, or fed on a hunter) are one level harder
+        const fort = link.type === 'wyrm' && link.fortified && fortifiedPuzzle !== null;
+        const solved = Math.random() < (fort ? fortifiedPuzzle : puzzle);
         if (link.type === 'vine' && solved) p.pos = link.to;
-        if (link.type === 'wyrm' && !solved) p.pos = link.to;
+        if (link.type === 'wyrm' && !solved) { p.pos = link.to; st.slides++; if (link.fortified) st.fortSlides++; }
         const target = colonies.find(c => c.target === link);
-        W.forestEvent(b, link, solved, occupied());
+        const ev = W.forestEvent(b, link, solved, occupied());
+        if (ev.kind === 'wake' && link.fortified) ev.link.fortified = true;   // armour moves with it
+        if (ev.kind === 'fly') st.flew++;
         if (target && !b.vines.includes(link)) target.target = null;   // the vine withered under the ants
         continue;
       }
@@ -129,7 +133,7 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
             removeVine(v); st.vinesEaten++; c.target = null;
             if (hatchStyle === 'vine') {
               // the vine turns into a wyrm: head at the vine's top, tail at its root
-              const w = { type: 'wyrm', from: v.to, to: v.from, id: b.nextId++ };
+              const w = { type: 'wyrm', from: v.to, to: v.from, id: b.nextId++, fortified: true };
               b.wyrms.push(w); W.rebuildStarts(b); st.hatched++;
             } else hatch(c);
           }
@@ -167,11 +171,11 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
         W.rebuildStarts(b);
         return true;
       }
-      w.hits = 0; w.slides = 0; huntersDue.push(3);
+      w.hits = 0; w.slides = 0; w.fortified = true; huntersDue.push(3);
       return false;
     });
   }
-  return { ...st, rounds: MAX_ROUNDS, timeout: true, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length };
+  return { ...st, rounds: MAX_ROUNDS, timeout: true, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length, fortLeft: b.wyrms.filter(w => w.fortified).length };
 }
 
 function run(n, opts) {
@@ -194,21 +198,17 @@ const setups = [
   ['… players discourage 4 · hunters discourage 2', { playerAction: 'discourage', hunterAction: 'discourage' }],
   ['… players discourage 4 · hunters destroy', { playerAction: 'discourage', hunterAction: 'destroy' }],
 ];
-const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Colonies (starved) | Vines eaten | Wyrms hatched | Tunnels | Vines left | Wyrms left |\n|---|---|---|---|---|---|---|---|---|';
-const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)}${r.timeout ? ` (${pct(r.timeout)} stuck)` : ''} | ${f1(r.avg('colonies'))} (${f1(r.avg('starved'))}) | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('hatched'))} | ${f1(r.avg('tunnels'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
-const ACTS = [['destroy / destroy', { playerAction: 'destroy', hunterAction: 'destroy' }],
-              ['discourage 4 / ignore', { playerAction: 'discourage', hunterAction: 'none' }]];
-console.log(`${GAMES} games per row; games stopped at ${MAX_ROUNDS} rounds. Egg-first ants, the vine turns into a wyrm.`);
-console.log('Colony chance = base + 5% for every player above 3, plus the per-colony increase. Response = what players / hunters do on a colony.');
-for (const puzzle of [0.90, 0.95]) {
-  for (const n of [2, 3, 4, 6]) {
-    const extra = Math.max(0, n - 3) * 5;
-    console.log(`\n### Puzzles solved ${pct(puzzle)}, ${n} players (${Math.min(3, Math.max(2, n))} hunters)${extra ? `, colonies +${extra}%` : ''}\n`);
-    console.log(header);
-    console.log(row('Living forest only', run(n, { hunters: false, ants: false, puzzle })));
-    console.log(row('Living forest + hunters, no ants', run(n, { ants: false, puzzle })));
-    for (const [b0, pc] of [[0.10, 0.10], [0.20, 0.10]])
-      for (const [label, act] of ACTS)
-        console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: 'vine', base: b0, perColony: pc, puzzle, perExtraPlayer: 0.05 })));
+const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Vines eaten | Fortified at end | Slides: wyrm (fortified) / tunnel | Wyrms flown off | Vines left | Wyrms left |\n|---|---|---|---|---|---|---|---|---|';
+const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)} | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('fortLeft'))} | ${f1(r.avg('slides'))} (${f1(r.avg('fortSlides'))}) / ${f1(r.avg('tunnelSlides'))} | ${f1(r.avg('flew'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
+console.log(`${GAMES} games per row. Egg-first ants (vine turns into a wyrm), colony chance + 5% per player above 3; players and hunters destroy colonies.`);
+console.log('Normal puzzles solved 95%; fortified wyrms (hatched from a vine, or fed on a hunter) solved 75%.');
+const IRON = { playerAction: 'destroy', hunterAction: 'destroy', eggFirst: true, hatchStyle: 'vine', puzzle: 0.95, perExtraPlayer: 0.05 };
+for (const n of [2, 3, 4, 6]) {
+  console.log(`\n### ${n} players (${Math.min(3, Math.max(2, n))} hunters)\n`);
+  console.log(header);
+  console.log(row('Living forest only', run(n, { hunters: false, ants: false, puzzle: 0.95 })));
+  for (const [b0, pc] of [[0.10, 0.10], [0.20, 0.10]]) {
+    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, no fortifying`, run(n, { ...IRON, base: b0, perColony: pc })));
+    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, **fortified**`, run(n, { ...IRON, base: b0, perColony: pc, fortifiedPuzzle: 0.75 })));
   }
 }
