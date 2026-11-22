@@ -34,7 +34,8 @@ const d6 = () => 1 + Math.floor(Math.random() * 6);
 const ri = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
-function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony } = {}) {
+function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony,
+  eggFirst = false, hatchStyle = 'nest' } = {}) {
   const b = copyBoard(pick(BOARDS));
   const players = Array.from({ length: nPlayers }, () => ({ pos: 1 }));
   let hunters = useHunters ? Array.from({ length: Math.min(3, Math.max(2, nPlayers)) }, () => ({ pos: ri(2, 98) })) : [];
@@ -110,6 +111,28 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
     if (ants) {
       // colonies eat, eggs hatch, new colonies appear
       for (const c of [...colonies]) {
+        if (eggFirst) {
+          // Egg-first story: the colony discovers a vine, the egg appears a round later, and two
+          // rounds of eating/incubation after that the vine is gone and the wyrm hatches in its place.
+          if (c.pause > 0) { c.pause--; continue; }
+          if (!c.target || !b.vines.includes(c.target)) {
+            const f = food(c.pos);
+            if (!f.length) { colonies = colonies.filter(x => x !== c); continue; }
+            c.target = pick(f); c.timer = 0;
+          }
+          c.timer++;
+          if (c.timer === 1) st.eggs++;
+          if (c.timer >= 3) {
+            const v = c.target;
+            removeVine(v); st.vinesEaten++; c.target = null;
+            if (hatchStyle === 'vine') {
+              // the vine turns into a wyrm: head at the vine's top, tail at its root
+              const w = { type: 'wyrm', from: v.to, to: v.from, id: b.nextId++ };
+              b.wyrms.push(w); W.rebuildStarts(b); st.hatched++;
+            } else hatch(c);
+          }
+          continue;
+        }
         if (c.egg !== null && --c.egg <= 0) { c.egg = null; hatch(c); }
         if (c.pause > 0) { c.pause--; continue; }
         if (!c.target || !b.vines.includes(c.target)) {
@@ -172,17 +195,17 @@ const setups = [
 console.log(`${GAMES} games per row; puzzles solved ${pct(PUZZLE)}; games stopped at ${MAX_ROUNDS} rounds.`);
 const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Colonies (starved) | Vines eaten | Wyrms hatched | Tunnels | Vines left | Wyrms left |\n|---|---|---|---|---|---|---|---|---|';
 const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)}${r.timeout ? ` (${pct(r.timeout)} stuck)` : ''} | ${f1(r.avg('colonies'))} (${f1(r.avg('starved'))}) | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('hatched'))} | ${f1(r.avg('tunnels'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
-for (const n of [2, 3, 4]) {
-  console.log(`\n### ${n} players (${Math.min(3, Math.max(2, n))} hunters), colonies at 5% + 5% per colony\n`);
-  console.log(header);
-  for (const [label, opts] of setups) console.log(row(label, run(n, opts)));
-}
-// How strong do the ants need to be to matter? 3 players, gentlest and harshest response.
-console.log('\n### Stronger ants, 3 players (3 hunters)\n');
+const ACTS = [['destroy / destroy', { playerAction: 'destroy', hunterAction: 'destroy' }],
+              ['discourage 4 / ignore', { playerAction: 'discourage', hunterAction: 'none' }]];
+console.log('\n### Egg first, 3 players (3 hunters)\n');
+console.log('Response = what players / hunters do on a colony. "Nest" = hatchling tail on the nest, head 10–20 above. "Vine" = the vine turns into a wyrm (head at its top, tail at its root).\n');
 console.log(header);
-for (const [b0, pc] of [[0.05, 0.05], [0.10, 0.10], [0.20, 0.10], [0.30, 0.15]]) {
-  for (const [label, act] of [['players & hunters destroy', { playerAction: 'destroy', hunterAction: 'destroy' }],
-                              ['players discourage 4, hunters ignore', { playerAction: 'discourage', hunterAction: 'none' }]]) {
-    console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${label}`, run(3, { ...act, base: b0, perColony: pc })));
-  }
-}
+console.log(row('Living forest + hunters, no ants', run(3, { ants: false })));
+for (const [b0, pc] of [[0.05, 0.05], [0.10, 0.10], [0.20, 0.10]])
+  for (const style of ['nest', 'vine'])
+    for (const [label, act] of ACTS)
+      console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${style} · ${label}`, run(3, { ...act, eggFirst: true, hatchStyle: style, base: b0, perColony: pc })));
+console.log('\n### Egg first, vine turns into a wyrm, 10% + 10%/colony, by player count\n');
+console.log(header);
+for (const n of [2, 3, 4]) for (const [label, act] of ACTS)
+  console.log(row(`${n} players · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: 'vine', base: 0.10, perColony: 0.10 })));
