@@ -164,3 +164,8 @@ label.check.left{margin-left:0;color:var(--ink)}
 #links g.fresh{animation:fresh 1.2s ease-in-out 3}
 @keyframes fresh{0%,100%{opacity:1}50%{opacity:.35}}
 #encounter.forest #encCard{border-color:#8bc34a;text-align:center}
+
+/* Iron Wyrm */
+.hunter{position:absolute;width:4%;height:4%;display:flex;align-items:center;justify-content:center;font-size:clamp(10px,1.6vw,20px);
+  transition:left .5s ease,top .5s ease;filter:drop-shadow(0 1px 2px #000a);pointer-events:none}
+#encounter.iron #encCard{border-color:#b0bec5;background:linear-gradient(#2f3b33,#26362c)}

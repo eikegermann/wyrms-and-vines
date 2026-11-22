@@ -27,6 +27,14 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - Every move and new vine follows the board rules and never lands on a player.
 - The numbers live in `FOREST` in `js/logic.js`, and `node tests/forest.js` checks the rules hold through thousands of random changes.
 
+## Iron Wyrm mode (switch on the setup screen; includes the Living forest)
+
+- **More wyrms:** the board has wyrms dropping 50 squares more in total than the vines lift, about 10 wyrms instead of 7.
+- **🐜 Vine-cutter ants:** colonies move in near vines. When they find one, a wyrm lays an 🥚 egg on it, and two rounds later the vine is gone and a **fortified wyrm** hatches along its path. Land on a colony to stomp it out.
+- **🏹 Hunters (2–3):** they roam the board. On a wyrm they win half the time and leave a **tunnel** 🕳️ that always slides you down. Otherwise they get eaten, and the wyrm becomes fortified. Hunters also trample ant colonies.
+- **⚙️ Fortified wyrms:** they wear iron plates, and their puzzle is one level harder. Above Adult it's the **iron grip:** start at 600, roll a d20, square it and take it away.
+- **The numbers** live in `IRON` in `js/logic.js`. `node tests/iron.js` checks the board stays consistent through thousands of rounds, and `tools/sim_iron.js` runs the balance trials. The reasons are in ADR 0014.
+
 ## Levels
 
 | Level | Dice | Target |
@@ -72,7 +80,8 @@ The reasons behind the rules and the design are recorded as architecture decisio
 - `js/logic.js`: pure game logic with no screen code: levels, seeded board generation and balance check, dice, read-write-make scoring, computer strategy, unlocks. It also runs in Node.
 - `js/sound.js`: plays sound effects from `sounds/` (missing files are skipped).
 - `js/game.js`: title card, setup screen, board drawing, turns, puzzles, duels.
-- `tests/board_rules.js`, `tests/forest.js`: board-rule checks in Node.
+- `tests/board_rules.js`, `tests/forest.js`, `tests/iron.js`: board-rule checks in Node.
+- `tools/sim_hunters.js`, `tools/sim_iron.js`: Monte Carlo trials for Iron Wyrm mode.
 - `tests/smoke.py`: plays full games in a headless browser, both all-computer games and a human answering every puzzle, and checks unlocks. To run it: `pip install playwright && playwright install chromium`, then `python tests/smoke.py`.
 
 All rights reserved.

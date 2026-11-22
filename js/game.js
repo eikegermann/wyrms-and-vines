@@ -107,6 +107,16 @@ $('#unlockAll').onchange = renderSetup;
 const FOREST_KEY = 'wyrms-and-vines.forest';
 try { $('#forestToggle').checked = localStorage.getItem(FOREST_KEY) !== 'off'; } catch (e) { /* storage unavailable */ }
 $('#forestToggle').onchange = () => { try { localStorage.setItem(FOREST_KEY, $('#forestToggle').checked ? 'on' : 'off'); } catch (e) { /* */ } };
+// Iron Wyrm mode builds on the living forest, so it switches the forest on.
+const IRON_KEY = 'wyrms-and-vines.iron';
+function syncIron() {
+  const on = $('#ironToggle').checked;
+  if (on) $('#forestToggle').checked = true;
+  $('#forestToggle').disabled = on;
+}
+try { $('#ironToggle').checked = localStorage.getItem(IRON_KEY) === 'on'; } catch (e) { /* storage unavailable */ }
+syncIron();
+$('#ironToggle').onchange = () => { syncIron(); try { localStorage.setItem(IRON_KEY, $('#ironToggle').checked ? 'on' : 'off'); } catch (e) { /* */ } };
 $('#newCodeBtn').onclick = () => { $('#codeInput').value = W.randomCode(); };
 $('#codeInput').value = W.randomCode();
 
@@ -141,9 +151,11 @@ $('#quitBtn').onclick = () => { G = null; closeEncounter(); $('#rollOverlay').cl
 let G = null;
 class Quit extends Error {}
 
-function startGame(code, players, forest = $('#forestToggle').checked) {
-  const board = W.generateBoard(code);
-  G = { board, players: players.map(p => ({ ...p, pos: 1 })), cur: 0, over: false, forest };
+function startGame(code, players, forest = $('#forestToggle').checked, ironOn = $('#ironToggle').checked) {
+  const board = W.generateBoard(code, ironOn ? 'iron' : {});
+  if (ironOn) forest = true;
+  G = { board, players: players.map(p => ({ ...p, pos: 1 })), cur: 0, over: false, forest, ironOn,
+    iron: ironOn ? W.newIronState(board, players.length) : null };
   $('#codeShow').textContent = board.code;
   $('#log').classList.remove('open'); $('#logBtn').textContent = '📜 Show log';
   $('#log').innerHTML = '';
@@ -153,7 +165,7 @@ function startGame(code, players, forest = $('#forestToggle').checked) {
   show('game');
   renderPlayers(); placeTokens();
   SFX.play('game-start');
-  log(`New game on board <b>${board.code}</b>. ${board.vines.length} vines, ${board.wyrms.length} wyrms.${G.forest ? ' 🌳 Living forest is on.' : ''}`);
+  log(`New game on board <b>${board.code}</b>. ${board.vines.length} vines, ${board.wyrms.length} wyrms.${G.ironOn ? ` ⚙️ Iron Wyrm mode: ${G.iron.hunters.length} hunters are about.` : G.forest ? ' 🌳 Living forest is on.' : ''}`);
   const me = G;
   play(me).catch(e => { if (!(e instanceof Quit)) throw e; });
 }
@@ -229,18 +241,39 @@ function drawLinks(board, fresh = new Set()) {
     mk(g, 'circle', { cx: a.x, cy: a.y, r: sp.stage > 1 ? 2.6 : 2, fill: '#6d5530', opacity: .8 });
     mk(g, 'text', { x: a.x, y: a.y + (sp.stage > 1 ? 2.4 : 1.6), 'font-size': sp.stage > 1 ? 6.5 : 4.5, 'text-anchor': 'middle' }).textContent = '🌱';
   });
+  // Iron Wyrm: hunters' tunnels are dark holes with a shaft down to where they come out.
+  (board.tunnels || []).forEach((t, i) => {
+    const g = group(t);
+    const a = cellCentre(t.from), b = cellCentre(t.to);
+    const d = curve(a, b, i % 2 ? 2 : -2);
+    mk(g, 'path', { d, fill: 'none', stroke: '#2b1d14', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-dasharray': '2 1.2', opacity: .75 });
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.7, fill: '#120c08', stroke: '#6d4c41', 'stroke-width': .7 });
+    mk(g, 'circle', { cx: b.x, cy: b.y, r: 1.3, fill: '#3e2723', opacity: .8 });
+  });
   board.wyrms.forEach((w, i) => {
     const g = group(w);
     const a = cellCentre(w.from), b = cellCentre(w.to);
     const d = curve(a, b, i % 2 ? 2 : -2);
     mk(g, 'path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
     mk(g, 'path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
-    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: '#3a1145', 'stroke-width': .5 });
+    // Fortified wyrms wear iron plates along the back and an iron ring round the head.
+    if (w.fortified) mk(g, 'path', { d, fill: 'none', stroke: '#cfd8dc', 'stroke-width': 2.2, 'stroke-dasharray': '1.1 1.1', 'stroke-linecap': 'butt', opacity: .95 });
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: w.fortified ? '#eceff1' : '#3a1145', 'stroke-width': w.fortified ? 1 : .5 });
     mk(g, 'circle', { cx: a.x - .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
     mk(g, 'circle', { cx: a.x + .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
     // Disturbed wyrms get sleepy, then grumpy.
     const mood = (w.hits || 0) >= 2 ? '😠' : (w.hits || 0) === 1 ? '💤' : '';
     if (mood) mk(g, 'text', { x: a.x + 3.4, y: a.y - 1.6, 'font-size': 3.6, 'text-anchor': 'middle' }).textContent = mood;
+  });
+  // Iron Wyrm: eggs on vines the ants are eating, and the ant colonies themselves.
+  board.vines.filter(v => v.egg).forEach(v => {
+    const a = cellCentre(v.from);
+    mk(svg, 'text', { x: a.x + 3, y: a.y + 3.6, 'font-size': 3.8, 'text-anchor': 'middle' }).textContent = '🥚';
+  });
+  (board.colonies || []).forEach(c => {
+    const g = group(c), a = cellCentre(c.pos);
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.8, fill: '#8d6e63', opacity: .55 });
+    mk(g, 'text', { x: a.x, y: a.y + 1.6, 'font-size': 4.4, 'text-anchor': 'middle' }).textContent = '🐜';
   });
 }
 
@@ -258,6 +291,17 @@ function placeTokens() {
     t.style.top = (c.y - 2.5 + oy) + '%';
     t.classList.toggle('current', i === G.cur && !G.over);
   });
+  // Iron Wyrm hunters
+  const ids = new Set();
+  (G.iron ? G.iron.hunters : []).forEach(h => {
+    ids.add(String(h.id));
+    let t = box.querySelector(`[data-h="${h.id}"]`);
+    if (!t) { t = el('div', 'hunter', '🏹'); t.dataset.h = h.id; t.title = 'Wyrm hunter'; box.appendChild(t); }
+    const c = cellCentre(h.pos);
+    t.style.left = (c.x - 2) + '%';
+    t.style.top = (c.y - 0.5) + '%';
+  });
+  box.querySelectorAll('.hunter').forEach(t => { if (!ids.has(t.dataset.h)) t.remove(); });
 }
 
 function renderPlayers() {
@@ -280,7 +324,7 @@ function openEncounter(kind) {
   $('#encounter').className = 'show ' + kind; $('#encCard').innerHTML = ''; stageSel = '#encCard';
   if (ENCOUNTER_SOUND[kind]) SFX.play(ENCOUNTER_SOUND[kind]);
 }
-function closeEncounter() { $('#encounter').className = ''; stageSel = '#stage'; }
+function closeEncounter() { $('#encounter').className = ''; $('#encCard').innerHTML = ''; stageSel = '#stage'; }
 // Final card of an encounter: big emoji and what happened.
 async function resultCard(g, auto, emoji, text, sound) {
   if (sound) SFX.play(sound);
@@ -400,6 +444,7 @@ async function play(g) {
     await turn(g, p);
     if (g.over) break;
     g.cur = (g.cur + 1) % g.players.length;
+    if (g.cur === 0 && g.ironOn) await ironPhase(g);
   }
 }
 
@@ -413,11 +458,30 @@ async function turn(g, p) {
   await walk(g, p, dest);
   if (p.pos >= W.SIZE) return win(g, p);
 
-  const link = g.board.starts.get(p.pos);
+  const tunnel = g.ironOn ? W.tunnelAt(g.board, p.pos) : null;
+  const link = tunnel ? null : g.board.starts.get(p.pos);
+  if (tunnel) {
+    await wait(g, 300);
+    openEncounter('wyrm');
+    await resultCard(g, p.ai, '🕳️', `${esc(p.name)} falls into a hunter's tunnel! Down to square ${tunnel.to}.`, 'tunnel');
+    closeEncounter();
+    log(`🕳️ ${esc(p.name)} fell down a tunnel to ${tunnel.to}.`);
+    await slide(g, p, tunnel.to);
+  } else if (!link && g.ironOn) {
+    const c = W.stompColony(g.board, p.pos);
+    if (c) {
+      drawLinks(g.board);
+      openEncounter('forest');
+      await resultCard(g, p.ai, '🐜💥', `${esc(p.name)} stomps on the ant colony! The ants scatter${c.target && c.timer >= W.IRON.eggAfter ? ', and the egg on the vine is gone' : ''}.`, 'stomp');
+      closeEncounter();
+      log(`🐜 ${esc(p.name)} stomped out the colony on ${c.pos}.`);
+    }
+  }
   if (link) {
     await wait(g, 300);
-    setStage(link.type === 'vine' ? `🌿 ${esc(p.name)} found a vine!` : `🐲 A wyrm has ${esc(p.name)}!`, '');
-    openEncounter(link.type);
+    const fort = g.ironOn && link.type === 'wyrm' && link.fortified;
+    setStage(link.type === 'vine' ? `🌿 ${esc(p.name)} found a vine!` : `${fort ? '⚙️ A fortified' : '🐲 A'} wyrm has ${esc(p.name)}!`, '');
+    openEncounter(fort ? 'wyrm iron' : link.type);
     const solved = await puzzle(g, p, link);
     closeEncounter();
     if (link.type === 'vine' && solved) { log(`🌿 ${esc(p.name)} climbs the vine to ${link.to}!`); await slide(g, p, link.to); }
@@ -432,9 +496,63 @@ async function turn(g, p) {
   if (others.length) await duel(g, p, others);
 }
 
+// ---------- Iron Wyrm: the world moves at the end of each round ----------
+// A card that carries on by itself after a moment, but can be tapped to move on sooner.
+function infoCard(g, emoji, text, sound) {
+  if (sound) SFX.play(sound);
+  setStage(`<div class="bigEmoji">${emoji}</div>`, `<div class="resultText">${text}</div>`);
+  const row = el('div', 'actions'); const b = el('button', 'btn gold', 'Carry on ▶'); row.appendChild(b); stage().appendChild(row);
+  return new Promise(res => {
+    const t = setTimeout(res, DELAY.ai * 3.5 * speed());
+    b.onclick = () => { clearTimeout(t); res(); };
+  }).then(() => alive(g));
+}
+
+async function ironPhase(g) {
+  const at = n => `square <b>${n}</b>`;
+  const events = W.ironRound(g.board, g.iron, new Set(g.players.map(p => p.pos)));
+  setStage('⚙️ The forest stirs…', '');
+  // hunters stride across the board
+  if (events.some(e => e.kind === 'hunter-move')) { placeTokens(); await wait(g, 500); }
+  const fresh = new Set();
+  const cards = [];
+  for (const e of events) {
+    switch (e.kind) {
+      case 'colony':
+        fresh.add(e.colony.id); log(`🐜 Vine-cutter ants moved in on ${e.colony.pos}.`);
+        cards.push(['🐜', `A colony of vine-cutter ants moves in on ${at(e.colony.pos)}. Watch your vines!`, 'ants']); break;
+      case 'ants-find': log(`🐜 The ants on ${e.colony.pos} have found the vine on ${e.vine.from}.`); break;
+      case 'egg':
+        log(`🥚 A wyrm laid an egg on the vine at ${e.vine.from}.`);
+        cards.push(['🥚', `A wyrm has laid an egg on the vine at ${at(e.vine.from)}, and the ants are eating it! Climb it while you can.`, 'egg']); break;
+      case 'hatch':
+        fresh.add(e.wyrm.id); log(`⚙️ The vine on ${e.vine.from} became a fortified wyrm (${e.wyrm.from}→${e.wyrm.to}).`);
+        cards.push(['🐣⚙️', `Crack! The vine on ${at(e.vine.from)} is gone, and a fortified wyrm hatches: from ${at(e.wyrm.from)} all the way down to ${at(e.wyrm.to)}!` +
+          (e.sprouted ? ` Its sprout on ${at(e.sprouted.from)} shoots up to ${at(e.sprouted.to)}.` : ''), 'egg-hatch']); break;
+      case 'ants-leave': log(`🐜 The ants on ${e.colony.pos} found nothing left to eat and marched off.`); break;
+      case 'hunter-arrives': log('🏹 A new hunter has arrived.'); break;
+      case 'hunter-colony':
+        log(`🏹 A hunter destroyed the ant colony on ${e.colony.pos}.`);
+        cards.push(['🏹🐜', `A hunter tramples the ant colony on ${at(e.colony.pos)}. The ants scatter!`, 'stomp']); break;
+      case 'hunter-wins':
+        fresh.add(e.tunnel.id); log(`🏹 A hunter beat the wyrm on ${e.wyrm.from}; it left a tunnel down to ${e.wyrm.to}.`);
+        cards.push(['🏹🕳️', `A hunter fights the wyrm on ${at(e.wyrm.from)} and wins! It leaves a tunnel behind, straight down to ${at(e.wyrm.to)}. Mind your step!`, 'hunter-fight']); break;
+      case 'hunter-eaten':
+        fresh.add(e.wyrm.id); log(`🐲 The wyrm on ${e.wyrm.from} ate a hunter and is now fortified.`);
+        cards.push(['😱⚙️', `A hunter attacks the wyrm on ${at(e.wyrm.from)}… and gets eaten! The wyrm falls asleep with a full belly, and grows iron plates.`, 'hunter-eaten']); break;
+    }
+  }
+  drawLinks(g.board, fresh); placeTokens(); renderPlayers();
+  for (const c of cards) {
+    openEncounter('forest');
+    await infoCard(g, ...c);
+    closeEncounter();
+  }
+}
+
 // ---------- Living forest ----------
 async function forestChange(g, p, link, solved) {
-  const avoid = new Set(g.players.map(q => q.pos));
+  const avoid = new Set([...g.players.map(q => q.pos), ...(g.board.colonies || []).map(c => c.pos)]);
   const ev = W.forestEvent(g.board, link, solved, avoid);
   const at = n => `square <b>${n}</b>`;
   let card = null;
@@ -481,13 +599,17 @@ async function forestChange(g, p, link, solved) {
 // Wyrm (cold): start at the target, roll and take away until you reach 0.
 // Each sum gets one retry; a second wrong answer and the puzzle fails.
 async function puzzle(g, p, link) {
-  const L = W.levelById(p.level), T = L.target, heat = link.type === 'vine';
+  // A fortified wyrm (Iron Wyrm mode) is one level harder; above Adult it's the iron grip.
+  const fort = g.ironOn && link.type === 'wyrm' && link.fortified;
+  const L = fort ? W.fortifiedLevel(p.level) : W.levelById(p.level), T = L.target, heat = link.type === 'vine';
   let total = heat ? 0 : T;
-  const colour = heat ? '#4caf50' : '#ab47bc';
+  const colour = heat ? '#4caf50' : fort ? '#90a4ae' : '#ab47bc';
+  const rollLabel = L.square ? 'a d20, square it,' : W.diceLabel(L.dice);
   const intro = heat
     ? `Grow the vine to <b>${T}</b> to climb up to square <b>${link.to}</b>. Roll ${W.diceLabel(L.dice)} and add it on!`
-    : `The wyrm's grip is <b>${T}</b>. Roll ${W.diceLabel(L.dice)} and take it away until it reaches 0, or slide down to <b>${link.to}</b>!`;
-  const title = heat ? `🌿 ${esc(p.name)} found a vine!` : `🐲 A wyrm has ${esc(p.name)}!`;
+    : (fort ? `This wyrm is fortified with iron plates: it's a <b>${L.name}</b> puzzle! ` : '') +
+      `The wyrm's grip is <b>${T}</b>. Roll ${rollLabel} and take it away until it reaches 0, or slide down to <b>${link.to}</b>!`;
+  const title = heat ? `🌿 ${esc(p.name)} found a vine!` : `${fort ? '⚙️ A fortified' : '🐲 A'} wyrm has ${esc(p.name)}!`;
 
   for (;;) {
     const pct = total / T;
@@ -496,8 +618,9 @@ async function puzzle(g, p, link) {
       (heat ? `Vine: <b>${total}</b> of ${T}` : `Grip: <b>${total}</b>`));
     await choose(g, [{ label: `🎲 Roll ${W.diceLabel(L.dice)}`, value: 1, cls: heat ? 'vine' : 'wyrm' }], p.ai ? 1 : undefined);
     const rolls = W.rollDice(L.dice);
-    await showRoll(g, p.name, L.dice, rolls, rolled(p.name, rolls));
-    const sum = rolls.reduce((a, b) => a + b, 0);
+    await showRoll(g, p.name, L.dice, rolls, rolled(p.name, rolls) + (L.square ? `<div class="rollSub">Now square it!</div>` : ''));
+    // the iron grip squares the roll
+    const sum = L.square ? rolls[0] * rolls[0] : rolls.reduce((a, b) => a + b, 0);
 
     if (!heat && sum >= total) {
       addMsg(`That's <b>${sum}</b>, enough to shake it off completely!`);
@@ -506,7 +629,7 @@ async function puzzle(g, p, link) {
       return true;
     }
     const correct = heat ? total + sum : total - sum;
-    const q = heat ? `${total} + ${rolls.join(' + ')} = ?` : `${total} − ${rolls.join(' − ')} = ?`;
+    const q = heat ? `${total} + ${rolls.join(' + ')} = ?` : L.square ? `${total} − ${rolls[0]}² = ?` : `${total} − ${rolls.join(' − ')} = ?`;
     addMsg(`<b style="font-size:1.3em">${q}</b>`);
 
     let right = false;
@@ -655,9 +778,9 @@ function win(g, p) {
     `<div class="codeLine">Board code: <b>${g.board.code}</b></div>`);
   const row = el('div', 'actions');
   const again = el('button', 'btn gold', '🔁 Same board again');
-  again.onclick = () => startGame(g.board.code, g.players.map(({ pos, ...q }) => q), g.forest);
+  again.onclick = () => startGame(g.board.code, g.players.map(({ pos, ...q }) => q), g.forest, g.ironOn);
   const fresh = el('button', 'btn', '🎲 New board');
-  fresh.onclick = () => startGame(W.randomCode(), g.players.map(({ pos, ...q }) => q), g.forest);
+  fresh.onclick = () => startGame(W.randomCode(), g.players.map(({ pos, ...q }) => q), g.forest, g.ironOn);
   const back = el('button', 'btn ghost', '↩ Setup');
   back.onclick = () => { G = null; closeEncounter(); $('#codeInput').value = W.randomCode(); show('setup'); renderSetup(); };
   row.append(again, fresh, back);
@@ -666,5 +789,5 @@ function win(g, p) {
 
 renderSetup();
 // For tests and the browser console
-window.WVGame = { get state() { return G; }, redraw() { if (G) drawLinks(G.board); }, DELAY, setTestFactor(f) { testFactor = f; } };
+window.WVGame = { get state() { return G; }, redraw() { if (G) { drawLinks(G.board); placeTokens(); } }, DELAY, setTestFactor(f) { testFactor = f; } };
 })();

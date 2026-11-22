@@ -15,6 +15,10 @@ const LEVELS = [
   { id: 6, name: 'Adult',   dice: [100],   target: 200 },
 ];
 const levelById = id => LEVELS.find(l => l.id === +id) || LEVELS[0];
+// Iron Wyrm mode: a fortified wyrm is one level harder; above Adult comes the iron grip:
+// roll a d20, square it, and take it away from 600.
+const IRON_GRIP = { id: 7, name: 'Iron grip', dice: [20], target: 600, square: true };
+const fortifiedLevel = id => (+id < 6 ? levelById(+id + 1) : IRON_GRIP);
 const diceLabel = dice => dice.length === 2 ? `2d${dice[0]}` : `1d${dice[0]}`;
 
 // ---------- Seeded randomness ----------
@@ -293,7 +297,7 @@ function rebuildStarts(board) {
 // Would this new link follow all the board rules, given everything else on the board?
 // `avoid` = squares with players on them; `ignore` = a link that is about to go.
 function linkAllowed(board, link, avoid = new Set(), ignore = null) {
-  const others = [...board.vines, ...board.wyrms, ...board.sprouts].filter(o => o !== ignore);
+  const others = [...board.vines, ...board.wyrms, ...board.sprouts, ...(board.tunnels || [])].filter(o => o !== ignore);
   const { from, to, type } = link;
   if (from < 2 || to < 2 || from > 99 || to > 99) return false;
   if (avoid.has(from) || avoid.has(to)) return false;
@@ -348,6 +352,7 @@ function forestEvent(board, link, solved, avoid = new Set(), rand = Math.random)
     if (link.hits >= FOREST.wakeAfter) {
       const moved = findSpot(board, 'wyrm', { endZone: link.from >= RULES.endZoneFrom }, avoid, link, rand);
       if (!moved) { link.hits = 0; link.slides = 0; return { kind: 'stay', old: link }; }
+      if (link.fortified) moved.fortified = true;      // the armour moves with it
       board.wyrms.splice(board.wyrms.indexOf(link), 1, moved);
       rebuildStarts(board);
       return { kind: 'wake', old: link, link: moved };
@@ -402,7 +407,141 @@ function unlockedLevels(maxPlayed, unlockAll) {
   return ids;
 }
 
-const API = { BOARD_PRESETS, FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
+// ---------- Iron Wyrm mode ----------
+// Vine-cutter ants turn vines into fortified wyrms; hunters fight wyrms and leave tunnels.
+const IRON = {
+  hunters: n => Math.min(3, Math.max(2, n)),    // 1 per player, at least 2, at most 3
+  hunterWin: 0.5,          // chance a hunter beats a wyrm (then it leaves a permanent tunnel)
+  hunterReturn: 3,         // rounds until an eaten hunter is replaced
+  colonyBase: 0.20,        // chance per round of a new colony...
+  colonyPerColony: 0.10,   // ...plus this for each colony already on the board...
+  colonyPerExtraPlayer: 0.05, // ...plus this for every player above 3
+  colonyMax: 0.5,
+  antRange: 4,             // a colony needs a vine root within this many squares
+  eggAfter: 1,             // rounds after finding a vine until the egg appears
+  hatchAfter: 3,           // rounds after finding a vine until it's eaten and the wyrm hatches
+};
+
+const ri = (rand, lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+
+function newIronState(board, nPlayers, rand = Math.random) {
+  board.tunnels = []; board.colonies = [];
+  const hunters = Array.from({ length: IRON.hunters(nPlayers) }, (_, i) => ({ id: i + 1, pos: ri(rand, 2, 98) }));
+  return { hunters, nextHunter: hunters.length + 1, due: [], nPlayers };
+}
+
+const isEndpoint = (board, n) => [...board.vines, ...board.wyrms, ...board.sprouts, ...board.tunnels]
+  .some(l => l.from === n || l.to === n);
+const antFood = (board, pos) => board.vines.filter(v => Math.abs(v.from - pos) <= IRON.antRange);
+
+// Remove a vine; a sprout waiting on it shoots up straight away.
+function eatVine(board, v) {
+  board.vines.splice(board.vines.indexOf(v), 1);
+  let sprouted = null;
+  if (v.sprout && board.sprouts.includes(v.sprout)) {
+    board.sprouts.splice(board.sprouts.indexOf(v.sprout), 1);
+    delete v.sprout.stage; board.vines.push(v.sprout); sprouted = v.sprout;
+  }
+  return sprouted;
+}
+
+// One round of the Iron Wyrm world, after every player has moved. Mutates the board and the
+// iron state, and returns a list of events for the screen to show, in order.
+// playerSquares: squares with players on them (new things never appear there).
+function ironRound(board, iron, playerSquares, rand = Math.random) {
+  const events = [];
+  const busy = n => playerSquares.has(n) || board.colonies.some(c => c.pos === n);
+
+  // 1) Ants: each colony works on one vine. Found it -> egg appears -> vine eaten, wyrm hatches.
+  for (const c of [...board.colonies]) {
+    if (!c.target || !board.vines.includes(c.target)) {
+      const food = antFood(board, c.pos);
+      if (!food.length) {
+        board.colonies.splice(board.colonies.indexOf(c), 1);
+        events.push({ kind: 'ants-leave', colony: c });
+        continue;
+      }
+      c.target = food[Math.floor(rand() * food.length)]; c.timer = 0;
+      events.push({ kind: 'ants-find', colony: c, vine: c.target });
+      continue;
+    }
+    c.timer++;
+    if (c.timer === IRON.eggAfter) { c.target.egg = true; events.push({ kind: 'egg', colony: c, vine: c.target }); }
+    if (c.timer >= IRON.hatchAfter) {
+      const v = c.target; c.target = null;
+      const sprouted = eatVine(board, v);
+      // the vine becomes a fortified wyrm: head at the vine's top, tail at its root
+      const w = { type: 'wyrm', from: v.to, to: v.from, id: board.nextId++, fortified: true };
+      board.wyrms.push(w);
+      rebuildStarts(board);
+      events.push({ kind: 'hatch', colony: c, vine: v, wyrm: w, sprouted });
+    }
+  }
+
+  // 2) Maybe a new colony appears near a vine (more likely with more colonies and players).
+  const chance = Math.min(IRON.colonyMax, IRON.colonyBase + IRON.colonyPerColony * board.colonies.length +
+    IRON.colonyPerExtraPlayer * Math.max(0, iron.nPlayers - 3));
+  if (rand() < chance) {
+    for (let t = 0; t < 40; t++) {
+      const pos = ri(rand, 2, 90);
+      if (isEndpoint(board, pos) || busy(pos) || !antFood(board, pos).length) continue;
+      const c = { id: board.nextId++, pos, target: null, timer: 0 };
+      board.colonies.push(c);
+      events.push({ kind: 'colony', colony: c });
+      break;
+    }
+  }
+
+  // 3) Hunters: replacements arrive, then everyone moves a d6 and deals with what they land on.
+  for (let i = iron.due.length - 1; i >= 0; i--) {
+    if (--iron.due[i] <= 0) {
+      iron.due.splice(i, 1);
+      const h = { id: iron.nextHunter++, pos: ri(rand, 2, 20) };
+      iron.hunters.push(h);
+      events.push({ kind: 'hunter-arrives', hunter: h });
+    }
+  }
+  for (const h of [...iron.hunters]) {
+    const from = h.pos;
+    h.pos += ri(rand, 1, 6);
+    if (h.pos > 99) h.pos = ri(rand, 2, 11);
+    events.push({ kind: 'hunter-move', hunter: h, from });
+    const col = board.colonies.find(c => c.pos === h.pos);
+    if (col) {
+      board.colonies.splice(board.colonies.indexOf(col), 1);
+      if (col.target) delete col.target.egg;
+      events.push({ kind: 'hunter-colony', hunter: h, colony: col });
+      continue;
+    }
+    const w = board.starts.get(h.pos);
+    if (!w || w.type !== 'wyrm') continue;
+    if (rand() < IRON.hunterWin) {
+      board.wyrms.splice(board.wyrms.indexOf(w), 1);
+      const tunnel = { type: 'tunnel', from: w.from, to: w.to, id: board.nextId++ };
+      board.tunnels.push(tunnel);
+      rebuildStarts(board);
+      events.push({ kind: 'hunter-wins', hunter: h, wyrm: w, tunnel });
+    } else {
+      iron.hunters.splice(iron.hunters.indexOf(h), 1);
+      iron.due.push(IRON.hunterReturn);
+      w.hits = 0; w.slides = 0; w.fortified = true;
+      events.push({ kind: 'hunter-eaten', hunter: h, wyrm: w });
+    }
+  }
+  return events;
+}
+
+// A player landing on a colony stomps it out (its egg too).
+function stompColony(board, pos) {
+  const c = board.colonies.find(x => x.pos === pos);
+  if (!c) return null;
+  board.colonies.splice(board.colonies.indexOf(c), 1);
+  if (c.target) delete c.target.egg;
+  return c;
+}
+const tunnelAt = (board, n) => (board.tunnels || []).find(t => t.from === n) || null;
+
+const API = { IRON, IRON_GRIP, fortifiedLevel, newIronState, ironRound, stompColony, tunnelAt, BOARD_PRESETS, FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
   squareToCell, rowOf, generateBoard, simulate, BALANCE, rollDie, rollDice, rollD10,
   rwmValue, rwmWinner, aiPlace, unlockedLevels, CODE_WORDS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

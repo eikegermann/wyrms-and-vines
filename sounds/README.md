@@ -23,6 +23,13 @@ Put sound files in this folder with exactly these names. The game plays any that
 | `wyrm-fly.mp3` | Living forest: a wyrm flies away forever | Big wing flaps, "I've had enough!", a fading roar |
 | `vine-sprout.mp3` | Living forest: a sprout appears or grows | A little "pop!", a twinkle |
 | `vine-wither.mp3` | Living forest: an old vine withers and the new one shoots up | A sad creak, then a rising whoosh |
+| `ants.mp3` | Iron Wyrm: an ant colony moves in | Tiny marching feet, munching |
+| `egg.mp3` | Iron Wyrm: a wyrm lays an egg on a vine | A soft "plop", an ominous hum |
+| `egg-hatch.mp3` | Iron Wyrm: the egg hatches and the vine becomes a fortified wyrm | An eggshell crack, then a clank of iron |
+| `stomp.mp3` | Iron Wyrm: someone stomps an ant colony | A big stomp, "squish!" |
+| `tunnel.mp3` | Iron Wyrm: falling down a hunter's tunnel | A falling "whooo", a thud at the bottom |
+| `hunter-fight.mp3` | Iron Wyrm: a hunter beats a wyrm | Twang of a bow, a roar, a victory shout |
+| `hunter-eaten.mp3` | Iron Wyrm: a wyrm eats a hunter | A gulp and a burp, then snoring |
 | `correct.mp3` | A sum is right | A bright chime, "yes!" |
 | `wrong.mp3` | A sum is wrong (keep it gentle!) | A soft "hmm?" or low boop |
 | `duel-start.mp3` | A duel begins | Swords clashing, "En garde!" |

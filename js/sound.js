@@ -10,6 +10,7 @@ const NAMES = [
   'vine-rustle', 'vine-climb', 'vine-snap',
   'wyrm-hiss', 'wyrm-shake-off', 'wyrm-slide', 'wyrm-wake', 'wyrm-fly',
   'vine-sprout', 'vine-wither',
+  'ants', 'egg', 'egg-hatch', 'stomp', 'tunnel', 'hunter-fight', 'hunter-eaten',
   'correct', 'wrong',
   'duel-start', 'digit-place', 'duel-win', 'duel-tie', 'peace',
 ];
