@@ -33,6 +33,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **🐜 Vine-cutter ants:** colonies move in near vines. When they find one, a wyrm lays an 🥚 egg on it, and two rounds later the vine is gone and a **fortified wyrm** hatches along its path. Land on a colony to stomp it out.
 - **🏹 Hunters (2–3):** they roam the board. On a wyrm they win half the time and leave a **tunnel** 🕳️ that always slides you down. Otherwise they get eaten, and the wyrm becomes fortified. Hunters also trample ant colonies.
 - **⚙️ Fortified wyrms:** they wear iron plates, and their puzzle is one level harder. Above Adult it's the **iron grip:** start at 600, roll a d20, square it and take it away.
+- **Intro card:** an Iron Wyrm or Living forest game opens with a short card on what to look out for.
 - **The numbers** live in `IRON` in `js/logic.js`. `node tests/iron.js` checks the board stays consistent through thousands of rounds, and `tools/sim_iron.js` runs the balance trials. The reasons are in ADR 0014.
 
 ## Levels

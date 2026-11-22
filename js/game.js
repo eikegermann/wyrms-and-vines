@@ -437,7 +437,32 @@ async function slide(g, p, to) {
 // ===================================================================
 // Turn loop
 // ===================================================================
+// A short "what to look out for" card when a Living forest or Iron Wyrm game starts.
+async function introCard(g) {
+  const forest = [
+    ['💤😠', 'Wyrms get sleepy, then grumpy. After three visits they wake up and move.'],
+    ['🐉💨', 'A wyrm that slides two players down flies away for good.'],
+    ['🌱', 'Every vine can be used three times. The first use plants a sprout somewhere else; when the old vine withers, the sprout shoots up.'],
+  ];
+  const iron = [
+    ['🐜', 'Vine-cutter ants move in near vines. Land on a colony to stomp it out!'],
+    ['🥚', 'An egg on a vine means the ants are eating it, and it will soon turn into a wyrm. Climb it while you can!'],
+    ['⚙️', 'Wyrms with iron plates are fortified: their puzzle is one level harder.'],
+    ['🏹', 'Hunters roam the board and fight wyrms. If a wyrm eats a hunter, it grows iron plates.'],
+    ['🕳️', "A hunter's tunnel always slides you down. No puzzle, so watch your step!"],
+  ];
+  const items = g.ironOn ? [...iron, ...forest] : forest;
+  openEncounter(g.ironOn ? 'wyrm iron' : 'forest');
+  setStage(g.ironOn ? '⚙️ Iron Wyrm mode' : '🌳 Living forest',
+    `<p>${g.ironOn ? 'The wyrms are taking over the forest. Race to square 100 before they do!' : 'The forest is alive and changes as you play.'} Look out for:</p>` +
+    `<ul class="introList">${items.map(([e, t]) => `<li><span>${e}</span>${t}</li>`).join('')}</ul>`);
+  // With only computer players there's nobody to tap, so it carries on by itself.
+  await choose(g, [{ label: "Let's go! ▶", value: 1, cls: 'gold' }], g.players.every(p => p.ai) ? 1 : undefined, DELAY.ai * 4);
+  closeEncounter();
+}
+
 async function play(g) {
+  if (g.forest) await introCard(g);
   while (!g.over) {
     const p = g.players[g.cur];
     renderPlayers(); placeTokens();

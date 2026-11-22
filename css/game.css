@@ -169,3 +169,8 @@ label.check.left{margin-left:0;color:var(--ink)}
 .hunter{position:absolute;width:4%;height:4%;display:flex;align-items:center;justify-content:center;font-size:clamp(10px,1.6vw,20px);
   transition:left .5s ease,top .5s ease;filter:drop-shadow(0 1px 2px #000a);pointer-events:none}
 #encounter.iron #encCard{border-color:#b0bec5;background:linear-gradient(#2f3b33,#26362c)}
+
+/* intro card for Living forest / Iron Wyrm games */
+.introList{list-style:none;padding:0;margin:8px 0 0;font-size:.92em;text-align:left}
+.introList li{display:flex;gap:12px;align-items:flex-start;margin:8px 0}
+.introList li span{flex:0 0 2.6em;font-size:1.35em;text-align:center}
