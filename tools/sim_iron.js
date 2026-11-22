@@ -35,7 +35,9 @@ const ri = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony,
-  eggFirst = false, hatchStyle = 'nest' } = {}) {
+  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0 } = {}) {
+  // colonies appear more often in bigger games: + perExtraPlayer for every player above 3
+  base += perExtraPlayer * Math.max(0, nPlayers - 3);
   const b = copyBoard(pick(BOARDS));
   const players = Array.from({ length: nPlayers }, () => ({ pos: 1 }));
   let hunters = useHunters ? Array.from({ length: Math.min(3, Math.max(2, nPlayers)) }, () => ({ pos: ri(2, 98) })) : [];
@@ -96,7 +98,7 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
       if (t) { p.pos = t.to; continue; }
       const link = b.starts.get(p.pos);
       if (link) {
-        const solved = Math.random() < PUZZLE;
+        const solved = Math.random() < puzzle;
         if (link.type === 'vine' && solved) p.pos = link.to;
         if (link.type === 'wyrm' && !solved) p.pos = link.to;
         const target = colonies.find(c => c.target === link);
@@ -192,19 +194,21 @@ const setups = [
   ['… players discourage 4 · hunters discourage 2', { playerAction: 'discourage', hunterAction: 'discourage' }],
   ['… players discourage 4 · hunters destroy', { playerAction: 'discourage', hunterAction: 'destroy' }],
 ];
-console.log(`${GAMES} games per row; puzzles solved ${pct(PUZZLE)}; games stopped at ${MAX_ROUNDS} rounds.`);
 const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Colonies (starved) | Vines eaten | Wyrms hatched | Tunnels | Vines left | Wyrms left |\n|---|---|---|---|---|---|---|---|---|';
 const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)}${r.timeout ? ` (${pct(r.timeout)} stuck)` : ''} | ${f1(r.avg('colonies'))} (${f1(r.avg('starved'))}) | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('hatched'))} | ${f1(r.avg('tunnels'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
 const ACTS = [['destroy / destroy', { playerAction: 'destroy', hunterAction: 'destroy' }],
               ['discourage 4 / ignore', { playerAction: 'discourage', hunterAction: 'none' }]];
-console.log('\nResponse = what players / hunters do on a colony. "Nest" = hatchling tail on the nest, head 10–20 above. "Vine" = the vine turns into a wyrm (head at its top, tail at its root).');
-for (const n of [2, 3, 4, 6]) {
-  console.log(`\n### Egg first, ${n} players (${Math.min(3, Math.max(2, n))} hunters)\n`);
-  console.log(header);
-  console.log(row('Living forest only', run(n, { hunters: false, ants: false })));
-  console.log(row('Living forest + hunters, no ants', run(n, { ants: false })));
-  for (const [b0, pc] of [[0.05, 0.05], [0.10, 0.10], [0.20, 0.10]])
-    for (const style of ['nest', 'vine'])
+console.log(`${GAMES} games per row; games stopped at ${MAX_ROUNDS} rounds. Egg-first ants, the vine turns into a wyrm.`);
+console.log('Colony chance = base + 5% for every player above 3, plus the per-colony increase. Response = what players / hunters do on a colony.');
+for (const puzzle of [0.90, 0.95]) {
+  for (const n of [2, 3, 4, 6]) {
+    const extra = Math.max(0, n - 3) * 5;
+    console.log(`\n### Puzzles solved ${pct(puzzle)}, ${n} players (${Math.min(3, Math.max(2, n))} hunters)${extra ? `, colonies +${extra}%` : ''}\n`);
+    console.log(header);
+    console.log(row('Living forest only', run(n, { hunters: false, ants: false, puzzle })));
+    console.log(row('Living forest + hunters, no ants', run(n, { ants: false, puzzle })));
+    for (const [b0, pc] of [[0.10, 0.10], [0.20, 0.10]])
       for (const [label, act] of ACTS)
-        console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${style} · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: style, base: b0, perColony: pc })));
+        console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: 'vine', base: b0, perColony: pc, puzzle, perExtraPlayer: 0.05 })));
+  }
 }
