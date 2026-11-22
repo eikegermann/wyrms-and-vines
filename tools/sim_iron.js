@@ -197,15 +197,14 @@ const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Colonies (starve
 const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)}${r.timeout ? ` (${pct(r.timeout)} stuck)` : ''} | ${f1(r.avg('colonies'))} (${f1(r.avg('starved'))}) | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('hatched'))} | ${f1(r.avg('tunnels'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
 const ACTS = [['destroy / destroy', { playerAction: 'destroy', hunterAction: 'destroy' }],
               ['discourage 4 / ignore', { playerAction: 'discourage', hunterAction: 'none' }]];
-console.log('\n### Egg first, 3 players (3 hunters)\n');
-console.log('Response = what players / hunters do on a colony. "Nest" = hatchling tail on the nest, head 10–20 above. "Vine" = the vine turns into a wyrm (head at its top, tail at its root).\n');
-console.log(header);
-console.log(row('Living forest + hunters, no ants', run(3, { ants: false })));
-for (const [b0, pc] of [[0.05, 0.05], [0.10, 0.10], [0.20, 0.10]])
-  for (const style of ['nest', 'vine'])
-    for (const [label, act] of ACTS)
-      console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${style} · ${label}`, run(3, { ...act, eggFirst: true, hatchStyle: style, base: b0, perColony: pc })));
-console.log('\n### Egg first, vine turns into a wyrm, 10% + 10%/colony, by player count\n');
-console.log(header);
-for (const n of [2, 3, 4]) for (const [label, act] of ACTS)
-  console.log(row(`${n} players · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: 'vine', base: 0.10, perColony: 0.10 })));
+console.log('\nResponse = what players / hunters do on a colony. "Nest" = hatchling tail on the nest, head 10–20 above. "Vine" = the vine turns into a wyrm (head at its top, tail at its root).');
+for (const n of [2, 3, 4, 6]) {
+  console.log(`\n### Egg first, ${n} players (${Math.min(3, Math.max(2, n))} hunters)\n`);
+  console.log(header);
+  console.log(row('Living forest only', run(n, { hunters: false, ants: false })));
+  console.log(row('Living forest + hunters, no ants', run(n, { ants: false })));
+  for (const [b0, pc] of [[0.05, 0.05], [0.10, 0.10], [0.20, 0.10]])
+    for (const style of ['nest', 'vine'])
+      for (const [label, act] of ACTS)
+        console.log(row(`${pct(b0)} + ${pct(pc)}/colony · ${style} · ${label}`, run(n, { ...act, eggFirst: true, hatchStyle: style, base: b0, perColony: pc })));
+}
