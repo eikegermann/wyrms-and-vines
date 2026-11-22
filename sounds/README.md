@@ -19,6 +19,10 @@ Put sound files in this folder with exactly these names. The game plays any that
 | `wyrm-hiss.mp3` | Landing on a wyrm's head | A hiss or growl |
 | `wyrm-shake-off.mp3` | Shaking off the wyrm (success) | A grumpy wyrm grumble, a "phew!" |
 | `wyrm-slide.mp3` | Sliding down the wyrm (failed wyrm) | A falling slide whistle, "aaaah!" |
+| `wyrm-wake.mp3` | Living forest: a wyrm wakes up and moves | A grumpy yawn, a grumble, slithering |
+| `wyrm-fly.mp3` | Living forest: a wyrm flies away forever | Big wing flaps, "I've had enough!", a fading roar |
+| `vine-sprout.mp3` | Living forest: a sprout appears or grows | A little "pop!", a twinkle |
+| `vine-wither.mp3` | Living forest: an old vine withers and the new one shoots up | A sad creak, then a rising whoosh |
 | `correct.mp3` | A sum is right | A bright chime, "yes!" |
 | `wrong.mp3` | A sum is wrong (keep it gentle!) | A soft "hmm?" or low boop |
 | `duel-start.mp3` | A duel begins | Swords clashing, "En garde!" |

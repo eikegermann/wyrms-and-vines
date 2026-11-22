@@ -19,6 +19,14 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **Wrong answers:** each sum gets one retry. A second wrong answer on the same sum means the vine snaps or the wyrm wins.
 - **Duels ⚔️:** land on another player's square and you may challenge them to read-write-make. The challenged player chooses whether the highest or lowest number wins. Each player rolls a d10 three times and places each digit in the hundreds, tens or ones before the next roll. The winner steps forward one square, and that square's vine or wyrm does not trigger. A tie means no winner.
 
+## Living forest (on by default, switch on the setup screen)
+
+- **Wyrms:** every landing disturbs a wyrm: 💤 after one, 😠 after two. After three landings it wakes up and moves to a new spot, possibly with a new size. An end-zone wyrm stays in the end zone. A wyrm that has slid two players down flies away forever.
+- **Vines:** every landing wears a vine out, and its leaves turn yellow. The first use plants a 🌱 sprout somewhere else, showing only its root. The sprout grows on the second use. On the third use the old vine withers and the sprout shoots up, revealing where it goes.
+- Computer players' landings count too.
+- Every move and new vine follows the board rules and never lands on a player.
+- The numbers live in `FOREST` in `js/logic.js`, and `node tests/forest.js` checks the rules hold through thousands of random changes.
+
 ## Levels
 
 | Level | Dice | Target |
@@ -60,6 +68,7 @@ Sound effects are files in `sounds/`. See [sounds/README.md](sounds/README.md) f
 - `js/logic.js`: pure game logic with no screen code: levels, seeded board generation and balance check, dice, read-write-make scoring, computer strategy, unlocks. It also runs in Node.
 - `js/sound.js`: plays sound effects from `sounds/` (missing files are skipped).
 - `js/game.js`: title card, setup screen, board drawing, turns, puzzles, duels.
+- `tests/board_rules.js`, `tests/forest.js`: board-rule checks in Node.
 - `tests/smoke.py`: plays full games in a headless browser, both all-computer games and a human answering every puzzle, and checks unlocks. To run it: `pip install playwright && playwright install chromium`, then `python tests/smoke.py`.
 
 All rights reserved.

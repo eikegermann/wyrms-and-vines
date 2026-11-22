@@ -248,7 +248,107 @@ function generateBoard(code) {
   }
   // Safety net (never seen in tests): accept a board that misses the pools rather than fail.
   for (let t = 0; !board && t < 50; t++) { board = placeLinks(rng, false); if (board) stats = simulate(board, rng); }
-  return { code: norm, vines: board.vines, wyrms: board.wyrms, starts: board.starts, stats, attempts };
+  let id = 0;
+  board.vines.forEach(v => { v.id = ++id; });
+  board.wyrms.forEach(w => { w.id = ++id; });
+  return { code: norm, vines: board.vines, wyrms: board.wyrms, sprouts: [], nextId: id + 1,
+    starts: board.starts, stats, attempts };
+}
+
+// ---------- Living forest ----------
+// Wyrms wake up and move after being disturbed a few times, or fly off for good after
+// sliding players down twice. Vines wear out: their first use plants a sprout elsewhere,
+// and when the old vine withers the sprout becomes the new vine.
+const FOREST = {
+  wakeAfter: 3,          // landings before a wyrm wakes and moves
+  flyAfterSlides: 2,     // slides before a wyrm flies away forever
+  witherAfter: 3,        // landings before a vine withers
+  endWyrmDrop: [10, 35], // an end-zone wyrm that wakes stays in the end zone, this size
+};
+
+function rebuildStarts(board) {
+  board.starts = new Map();
+  board.vines.forEach(v => board.starts.set(v.from, v));
+  board.wyrms.forEach(w => board.starts.set(w.from, w));
+}
+
+// Would this new link follow all the board rules, given everything else on the board?
+// `avoid` = squares with players on them; `ignore` = a link that is about to go.
+function linkAllowed(board, link, avoid = new Set(), ignore = null) {
+  const others = [...board.vines, ...board.wyrms, ...board.sprouts].filter(o => o !== ignore);
+  const { from, to, type } = link;
+  if (from < 2 || to < 2 || from > 99 || to > 99) return false;
+  if (avoid.has(from) || avoid.has(to)) return false;
+  if (others.some(o => o.from === from || o.to === from || o.from === to || o.to === to)) return false;
+  if (type === 'vine' && (to <= from || rowOf(to) <= rowOf(from) || to > RULES.vineMaxTop)) return false;
+  if (type === 'wyrm' && (to >= from || rowOf(to) >= rowOf(from))) return false;
+  if (others.filter(o => rowOf(o.from) === rowOf(from)).length >= 3) return false;
+  if (others.some(o => linkDistance(o, link) < RULES.linkSpacing)) return false;
+  if (type === 'wyrm') {
+    const wyrms = others.filter(o => o.type === 'wyrm');
+    const drop = from - to;
+    if (from >= RULES.endZoneFrom && wyrms.filter(w => w.from >= RULES.endZoneFrom).length >= RULES.endZoneWyrms[1]) return false;
+    if (to <= 10 && wyrms.filter(w => w.to <= 10).length >= RULES.maxLowTails) return false;
+    if (wyrms.some(w => Math.abs(w.from - from) < RULES.wyrmGap(drop, w.from - w.to))) return false;
+    if (wyrms.some(w => w.from - w.to > RULES.bigDrop && from > w.to && from - w.to <= RULES.safeAfterBigDrop)) return false;
+    if (drop > RULES.bigDrop && wyrms.some(w => w.from > to && w.from - to <= RULES.safeAfterBigDrop)) return false;
+  }
+  return true;
+}
+
+// Find a new spot (and size) for a wyrm or vine. Returns the new link, or null.
+function findSpot(board, type, { endZone = false } = {}, avoid, ignore, rand = Math.random) {
+  const ri = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+  for (let t = 0; t < 800; t++) {
+    let link;
+    if (type === 'wyrm') {
+      const drop = endZone ? ri(...FOREST.endWyrmDrop) : ri(...RULES.wyrmDrop);
+      const from = endZone ? ri(RULES.endZoneFrom, 99) : ri(13, 99);
+      link = { type, from, to: from - drop };
+    } else {
+      const len = ri(...RULES.vineLength);
+      const from = ri(2, RULES.vineMaxTop - len);
+      link = { type, from, to: from + len };
+    }
+    if (linkAllowed(board, link, avoid, ignore)) { link.id = board.nextId++; return link; }
+  }
+  return null;
+}
+
+// Apply what happens after a player lands on `link`. Mutates the board and returns an event:
+// wyrms: 'doze' (nothing visible yet), 'wake' (moved), 'fly' (gone), 'stay' (couldn't find a new spot)
+// vines: 'sprout' (first use), 'grow' (second), 'wither' (third: old vine gone, sprout becomes the vine)
+function forestEvent(board, link, solved, avoid = new Set(), rand = Math.random) {
+  link.hits = (link.hits || 0) + 1;
+  if (link.type === 'wyrm') {
+    if (!solved) link.slides = (link.slides || 0) + 1;
+    if (link.slides >= FOREST.flyAfterSlides) {
+      board.wyrms.splice(board.wyrms.indexOf(link), 1);
+      rebuildStarts(board);
+      return { kind: 'fly', old: link };
+    }
+    if (link.hits >= FOREST.wakeAfter) {
+      const moved = findSpot(board, 'wyrm', { endZone: link.from >= RULES.endZoneFrom }, avoid, link, rand);
+      if (!moved) { link.hits = 0; link.slides = 0; return { kind: 'stay', old: link }; }
+      board.wyrms.splice(board.wyrms.indexOf(link), 1, moved);
+      rebuildStarts(board);
+      return { kind: 'wake', old: link, link: moved };
+    }
+    return { kind: 'doze', old: link };
+  }
+  // vine
+  if (!link.sprout) {
+    const sp = findSpot(board, 'vine', {}, avoid, null, rand);
+    if (sp) { sp.stage = 1; link.sprout = sp; board.sprouts.push(sp); }
+  } else if (link.hits === 2) link.sprout.stage = 2;
+  if (link.hits >= FOREST.witherAfter) {
+    board.vines.splice(board.vines.indexOf(link), 1);
+    const sp = link.sprout;
+    if (sp) { board.sprouts.splice(board.sprouts.indexOf(sp), 1); delete sp.stage; board.vines.push(sp); }
+    rebuildStarts(board);
+    return { kind: 'wither', old: link, link: sp || null };
+  }
+  return { kind: link.hits === 1 ? 'sprout' : 'grow', old: link, link: link.sprout || null };
 }
 
 // ---------- Dice ----------
@@ -284,7 +384,7 @@ function unlockedLevels(maxPlayed, unlockAll) {
   return ids;
 }
 
-const API = { RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
+const API = { FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
   squareToCell, rowOf, generateBoard, simulate, BALANCE, rollDie, rollDice, rollD10,
   rwmValue, rwmWinner, aiPlace, unlockedLevels, CODE_WORDS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

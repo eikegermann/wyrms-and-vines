@@ -104,6 +104,9 @@ $('#addPlayerBtn').onclick = () => {
   renderSetup();
 };
 $('#unlockAll').onchange = renderSetup;
+const FOREST_KEY = 'wyrms-and-vines.forest';
+try { $('#forestToggle').checked = localStorage.getItem(FOREST_KEY) !== 'off'; } catch (e) { /* storage unavailable */ }
+$('#forestToggle').onchange = () => { try { localStorage.setItem(FOREST_KEY, $('#forestToggle').checked ? 'on' : 'off'); } catch (e) { /* */ } };
 $('#newCodeBtn').onclick = () => { $('#codeInput').value = W.randomCode(); };
 $('#codeInput').value = W.randomCode();
 
@@ -138,9 +141,9 @@ $('#quitBtn').onclick = () => { G = null; closeEncounter(); $('#rollOverlay').cl
 let G = null;
 class Quit extends Error {}
 
-function startGame(code, players) {
+function startGame(code, players, forest = $('#forestToggle').checked) {
   const board = W.generateBoard(code);
-  G = { board, players: players.map(p => ({ ...p, pos: 1 })), cur: 0, over: false };
+  G = { board, players: players.map(p => ({ ...p, pos: 1 })), cur: 0, over: false, forest };
   $('#codeShow').textContent = board.code;
   $('#log').classList.remove('open'); $('#logBtn').textContent = '📜 Show log';
   $('#log').innerHTML = '';
@@ -150,7 +153,7 @@ function startGame(code, players) {
   show('game');
   renderPlayers(); placeTokens();
   SFX.play('game-start');
-  log(`New game on board <b>${board.code}</b>. ${board.vines.length} vines, ${board.wyrms.length} wyrms.`);
+  log(`New game on board <b>${board.code}</b>. ${board.vines.length} vines, ${board.wyrms.length} wyrms.${G.forest ? ' 🌳 Living forest is on.' : ''}`);
   const me = G;
   play(me).catch(e => { if (!(e instanceof Quit)) throw e; });
 }
@@ -190,35 +193,54 @@ function drawBoard(board) {
     nums.appendChild(c);
   }
 
+  drawLinks(board);
+}
+
+// Vines, sprouts and wyrms. `fresh` = ids to highlight (just moved or grown).
+function drawLinks(board, fresh = new Set()) {
   const svg = $('#links'); svg.innerHTML = '';
   const NS = 'http://www.w3.org/2000/svg';
-  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e; };
+  const mk = (parent, tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const group = (link) => { const g = mk(svg, 'g', { 'data-id': link.id }); if (fresh.has(link.id)) g.classList.add('fresh'); return g; };
   const curve = (a, b, bend) => {
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
     return `M${a.x},${a.y} Q${mx - dy / len * bend},${my + dx / len * bend} ${b.x},${b.y}`;
   };
+  // Leaves turn yellow as a vine wears out.
+  const WEAR = [{ stem: '#2e6b30', vine: '#66bb6a', leaf: '#43a047' }, { stem: '#557a2a', vine: '#a5c25a', leaf: '#9ccc65' }, { stem: '#7a6a2a', vine: '#cdb85a', leaf: '#d4b24c' }];
   board.vines.forEach((v, i) => {
+    const g = group(v), c = WEAR[Math.min(v.hits || 0, 2)];
     const a = cellCentre(v.from), b = cellCentre(v.to);
     const d = curve(a, b, i % 2 ? 1.5 : -1.5);
-    mk('path', { d, fill: 'none', stroke: '#2e6b30', 'stroke-width': 2.2, 'stroke-linecap': 'round', opacity: .9 });
-    const p = mk('path', { d, fill: 'none', stroke: '#66bb6a', 'stroke-width': 1.1, 'stroke-linecap': 'round' });
-    mk('circle', { cx: a.x, cy: a.y, r: 2.2, fill: '#8d6e3f', stroke: '#2e6b30', 'stroke-width': .6 });
-    mk('text', { x: b.x, y: b.y + 1.3, 'font-size': 4, 'text-anchor': 'middle' }).textContent = '🍃';
+    mk(g, 'path', { d, fill: 'none', stroke: c.stem, 'stroke-width': 2.2, 'stroke-linecap': 'round', opacity: .9 });
+    const p = mk(g, 'path', { d, fill: 'none', stroke: c.vine, 'stroke-width': 1.1, 'stroke-linecap': 'round' });
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.2, fill: '#8d6e3f', stroke: c.stem, 'stroke-width': .6 });
+    mk(g, 'text', { x: b.x, y: b.y + 1.3, 'font-size': 4, 'text-anchor': 'middle' }).textContent = (v.hits || 0) >= 2 ? '🍂' : '🍃';
     const L = p.getTotalLength ? p.getTotalLength() : 0;
     for (let t = 4; t < L - 2; t += 5) {
       const pt = p.getPointAtLength(t);
-      mk('ellipse', { cx: pt.x + ((t / 5) % 2 ? 1.2 : -1.2), cy: pt.y, rx: 1.3, ry: .7, fill: '#43a047', opacity: .95 });
+      mk(g, 'ellipse', { cx: pt.x + ((t / 5) % 2 ? 1.2 : -1.2), cy: pt.y, rx: 1.3, ry: .7, fill: c.leaf, opacity: .95 });
     }
   });
+  // Sprouts only show their root: where they'll climb to is a surprise.
+  (board.sprouts || []).forEach(sp => {
+    const g = group(sp), a = cellCentre(sp.from);
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: sp.stage > 1 ? 2.6 : 2, fill: '#6d5530', opacity: .8 });
+    mk(g, 'text', { x: a.x, y: a.y + (sp.stage > 1 ? 2.4 : 1.6), 'font-size': sp.stage > 1 ? 6.5 : 4.5, 'text-anchor': 'middle' }).textContent = '🌱';
+  });
   board.wyrms.forEach((w, i) => {
+    const g = group(w);
     const a = cellCentre(w.from), b = cellCentre(w.to);
     const d = curve(a, b, i % 2 ? 2 : -2);
-    mk('path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
-    mk('path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
-    mk('circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: '#3a1145', 'stroke-width': .5 });
-    mk('circle', { cx: a.x - .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
-    mk('circle', { cx: a.x + .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+    mk(g, 'path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
+    mk(g, 'path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
+    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: '#3a1145', 'stroke-width': .5 });
+    mk(g, 'circle', { cx: a.x - .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+    mk(g, 'circle', { cx: a.x + .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+    // Disturbed wyrms get sleepy, then grumpy.
+    const mood = (w.hits || 0) >= 2 ? '😠' : (w.hits || 0) === 1 ? '💤' : '';
+    if (mood) mk(g, 'text', { x: a.x + 3.4, y: a.y - 1.6, 'font-size': 3.6, 'text-anchor': 'middle' }).textContent = mood;
   });
 }
 
@@ -403,10 +425,55 @@ async function turn(g, p) {
     if (link.type === 'vine' && !solved) log(`${esc(p.name)}'s vine snapped.`);
     if (link.type === 'wyrm' && solved) log(`${esc(p.name)} shook off the wyrm!`);
     await wait(g, 400);
+    if (g.forest) await forestChange(g, p, link, solved);
   }
 
   const others = g.players.filter(o => o !== p && o.pos === p.pos);
   if (others.length) await duel(g, p, others);
+}
+
+// ---------- Living forest ----------
+async function forestChange(g, p, link, solved) {
+  const avoid = new Set(g.players.map(q => q.pos));
+  const ev = W.forestEvent(g.board, link, solved, avoid);
+  const at = n => `square <b>${n}</b>`;
+  let card = null;
+  if (ev.kind === 'fly') {
+    // the wyrm lifts off the board and fades away
+    const el0 = document.querySelector(`#links g[data-id="${link.id}"]`);
+    if (el0) el0.classList.add('leaving');
+    await wait(g, 900);
+    drawLinks(g.board);
+    card = ['🐉💨', `The wyrm on ${at(link.from)} has had enough of this place and flies away forever!`, 'wyrm-fly'];
+    log(`🐉💨 The wyrm on ${link.from} flew away for good.`);
+  } else if (ev.kind === 'wake') {
+    drawLinks(g.board, new Set([ev.link.id]));
+    card = ['😠', `The wyrm on ${at(link.from)} wakes up, grumbles, and slithers off to ${at(ev.link.from)}!`, 'wyrm-wake'];
+    log(`😠 The wyrm moved from ${link.from} to ${ev.link.from} (drops to ${ev.link.to}).`);
+  } else if (ev.kind === 'stay') {
+    drawLinks(g.board);
+    card = ['😴', `The wyrm on ${at(link.from)} wakes up, looks around, finds nowhere better, and goes back to sleep.`, null];
+  } else if (ev.kind === 'sprout' && ev.link) {
+    drawLinks(g.board, new Set([ev.link.id]));
+    card = ['🌱', `A new sprout pops up on ${at(ev.link.from)}. Where will it grow?`, 'vine-sprout'];
+    log(`🌱 A sprout appeared on ${ev.link.from}.`);
+  } else if (ev.kind === 'grow' && ev.link) {
+    drawLinks(g.board, new Set([ev.link.id]));
+    card = ['🌱', `The sprout on ${at(ev.link.from)} is getting bigger…`, 'vine-sprout'];
+  } else if (ev.kind === 'wither') {
+    drawLinks(g.board, ev.link ? new Set([ev.link.id]) : new Set());
+    card = ev.link
+      ? ['🥀', `The old vine on ${at(link.from)} withers away… and the sprout on ${at(ev.link.from)} shoots all the way up to ${at(ev.link.to)}!`, 'vine-wither']
+      : ['🥀', `The old vine on ${at(link.from)} withers away.`, 'vine-wither'];
+    log(`🥀 The vine on ${link.from} withered${ev.link ? `; new vine ${ev.link.from}→${ev.link.to}` : ''}.`);
+  } else {
+    drawLinks(g.board);      // dozing wyrm / worn vine: just update the look
+  }
+  if (card) {
+    openEncounter('forest');
+    await resultCard(g, p.ai, card[0], card[1], card[2]);
+    closeEncounter();
+  }
 }
 
 // ---------- Vine / wyrm puzzle ----------
@@ -588,9 +655,9 @@ function win(g, p) {
     `<div class="codeLine">Board code: <b>${g.board.code}</b></div>`);
   const row = el('div', 'actions');
   const again = el('button', 'btn gold', '🔁 Same board again');
-  again.onclick = () => startGame(g.board.code, g.players.map(({ pos, ...q }) => q));
+  again.onclick = () => startGame(g.board.code, g.players.map(({ pos, ...q }) => q), g.forest);
   const fresh = el('button', 'btn', '🎲 New board');
-  fresh.onclick = () => startGame(W.randomCode(), g.players.map(({ pos, ...q }) => q));
+  fresh.onclick = () => startGame(W.randomCode(), g.players.map(({ pos, ...q }) => q), g.forest);
   const back = el('button', 'btn ghost', '↩ Setup');
   back.onclick = () => { G = null; closeEncounter(); $('#codeInput').value = W.randomCode(); show('setup'); renderSetup(); };
   row.append(again, fresh, back);
@@ -599,5 +666,5 @@ function win(g, p) {
 
 renderSetup();
 // For tests and the browser console
-window.WVGame = { get state() { return G; }, DELAY, setTestFactor(f) { testFactor = f; } };
+window.WVGame = { get state() { return G; }, redraw() { if (G) drawLinks(G.board); }, DELAY, setTestFactor(f) { testFactor = f; } };
 })();

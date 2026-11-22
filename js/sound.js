@@ -8,7 +8,8 @@
 const NAMES = [
   'dice-shake', 'dice-land', 'step', 'game-start', 'game-win',
   'vine-rustle', 'vine-climb', 'vine-snap',
-  'wyrm-hiss', 'wyrm-shake-off', 'wyrm-slide',
+  'wyrm-hiss', 'wyrm-shake-off', 'wyrm-slide', 'wyrm-wake', 'wyrm-fly',
+  'vine-sprout', 'vine-wither',
   'correct', 'wrong',
   'duel-start', 'digit-place', 'duel-win', 'duel-tie', 'peace',
 ];

@@ -156,3 +156,11 @@ button.slot.pick{cursor:pointer;border-color:var(--gold);background:#3a3420}
 .standings{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:12px 0 4px;font-size:.85em;color:var(--muted)}
 .codeLine{margin-top:8px;font-size:.85em;color:var(--muted)}
 .codeLine b{color:var(--gold);letter-spacing:.06em}
+
+/* living forest */
+label.check.left{margin-left:0;color:var(--ink)}
+#links g{transition:opacity .9s ease, transform .9s ease;transform-box:fill-box;transform-origin:center}
+#links g.leaving{opacity:0;transform:translateY(-12px) scale(1.15)}
+#links g.fresh{animation:fresh 1.2s ease-in-out 3}
+@keyframes fresh{0%,100%{opacity:1}50%{opacity:.35}}
+#encounter.forest #encCard{border-color:#8bc34a;text-align:center}
