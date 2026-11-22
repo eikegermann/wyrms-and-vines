@@ -115,13 +115,15 @@ const RULES = {
   wyrmGap: (dropA, dropB) => Math.max(2, 2 + Math.floor((dropA + dropB - 5) / 5)),
 };
 
-function placeLinks(rng, strict = true) {
+function placeLinks(rng, strict = true, opts = {}) {
   const used = new Set([1, SIZE]);
   const starts = new Map();          // start square -> {type, from, to}
   const rowStarts = new Array(10).fill(0);
   const vines = [], wyrms = [];
   const gainPool = randInt(rng, ...RULES.gainPool);
-  const dropPool = Math.round(gainPool * (RULES.dropToGain[0] + rng() * (RULES.dropToGain[1] - RULES.dropToGain[0])));
+  // Normally drops are 0.95–1.1 times the gains; a mode can instead ask for a fixed surplus of drop.
+  const dropPool = opts.dropOverGain != null ? gainPool + opts.dropOverGain
+    : Math.round(gainPool * (RULES.dropToGain[0] + rng() * (RULES.dropToGain[1] - RULES.dropToGain[0])));
   const gained = () => vines.reduce((a, v) => a + v.to - v.from, 0);
   const dropped = () => wyrms.reduce((a, w) => a + w.from - w.to, 0);
   // Pick a size that won't strand a remainder too small for another link.
@@ -235,19 +237,35 @@ function simulate(board, rng, games = 1500, pSuccess = 0.7) {
 
 const BALANCE = { minMean: 20, maxMean: 30, maxP90: 52 };
 
-function generateBoard(code) {
+// Board presets for modes. Iron Wyrm: wyrms drop 50 squares more in total than vines lift,
+// and to fit the extra wyrms their heads may sit closer together.
+const BOARD_PRESETS = {
+  iron: { dropOverGain: 50, rules: {
+    wyrmGap: (dropA, dropB) => Math.max(2, 1 + Math.floor((dropA + dropB - 5) / 10)),
+    linkSpacing: 0.4 } },
+};
+
+function generateBoard(code, opts = {}) {
+  if (typeof opts === 'string') opts = BOARD_PRESETS[opts] || {};
+  // A preset may override some board rules while this board is made.
+  const saved = { ...RULES };
+  Object.assign(RULES, opts.rules || {});
+  try { return makeBoard(code, opts); } finally { Object.assign(RULES, saved); }
+}
+
+function makeBoard(code, opts) {
   const norm = normaliseCode(code);
   const rng = makeRng(hashString(norm));
   let board = null, stats = null, attempts = 0;
   for (attempts = 1; attempts <= 400; attempts++) {
-    const placed = placeLinks(rng);
+    const placed = placeLinks(rng, true, opts);
     if (!placed) continue;
     board = placed;
     stats = simulate(board, rng);
     if (stats.mean >= BALANCE.minMean && stats.mean <= BALANCE.maxMean && stats.p90 <= BALANCE.maxP90) break;
   }
   // Safety net (never seen in tests): accept a board that misses the pools rather than fail.
-  for (let t = 0; !board && t < 50; t++) { board = placeLinks(rng, false); if (board) stats = simulate(board, rng); }
+  for (let t = 0; !board && t < 50; t++) { board = placeLinks(rng, false, opts); if (board) stats = simulate(board, rng); }
   let id = 0;
   board.vines.forEach(v => { v.id = ++id; });
   board.wyrms.forEach(w => { w.id = ++id; });
@@ -384,7 +402,7 @@ function unlockedLevels(maxPlayed, unlockAll) {
   return ids;
 }
 
-const API = { FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
+const API = { BOARD_PRESETS, FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
   squareToCell, rowOf, generateBoard, simulate, BALANCE, rollDie, rollDice, rollD10,
   rwmValue, rwmWinner, aiPlace, unlockedLevels, CODE_WORDS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

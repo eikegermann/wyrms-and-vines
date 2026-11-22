@@ -23,6 +23,7 @@ const ANT = { base: 0.05, perColony: 0.05, max: 0.5, range: 4, eatRounds: 3, hat
   eggDrop: [10, 20], playerPause: 4, hunterPause: 2, nearby: 6 };
 
 const BOARDS = Array.from({ length: 300 }, (_, i) => W.generateBoard('IRON-' + i));
+const IRON_BOARDS = Array.from({ length: 300 }, (_, i) => W.generateBoard('IRON-' + i, 'iron'));
 function copyBoard(b) {
   const c = { nextId: b.nextId, sprouts: [], tunnels: [],
     vines: b.vines.map(v => ({ type: v.type, from: v.from, to: v.to, id: v.id })),
@@ -35,15 +36,17 @@ const ri = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony,
-  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0, fortifiedPuzzle = null } = {}) {
+  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0, fortifiedPuzzle = null, ironBoard = false } = {}) {
   // colonies appear more often in bigger games: + perExtraPlayer for every player above 3
   base += perExtraPlayer * Math.max(0, nPlayers - 3);
-  const b = copyBoard(pick(BOARDS));
+  const b = copyBoard(pick(ironBoard ? IRON_BOARDS : BOARDS));
+  const eatenAt = new Map();         // former vine root -> round it was eaten
+  let round = 0;
   const players = Array.from({ length: nPlayers }, () => ({ pos: 1 }));
   let hunters = useHunters ? Array.from({ length: Math.min(3, Math.max(2, nPlayers)) }, () => ({ pos: ri(2, 98) })) : [];
   const huntersDue = [];
   let colonies = [];                 // {pos, target, eaten, progress, pause, egg: rounds left | null, laid}
-  const st = { slides: 0, fortSlides: 0, tunnelSlides: 0, flew: 0, colonies: 0, starved: 0, vinesEaten: 0, eggs: 0, hatched: 0, eggFailed: 0, tunnels: 0, destroyed: 0 };
+  const st = { startWyrms: b.wyrms.length, wyrmLandings: 0, ghost: 0, lastChance: 0, slides: 0, fortSlides: 0, tunnelSlides: 0, flew: 0, colonies: 0, starved: 0, vinesEaten: 0, eggs: 0, hatched: 0, eggFailed: 0, tunnels: 0, destroyed: 0 };
 
   const occupied = () => {
     const s = new Set(players.map(p => p.pos));
@@ -91,12 +94,18 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
   };
 
   for (let r = 1; r <= MAX_ROUNDS; r++) {
+    round = r;
     for (const p of players) {
       p.pos = Math.min(100, p.pos + d6());
       if (p.pos >= 100) return { ...st, rounds: r, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length, fortLeft: b.wyrms.filter(w => w.fortified).length };
       const t = b.tunnels.find(x => x.from === p.pos);
       if (t) { p.pos = t.to; st.tunnelSlides++; continue; }
       const link = b.starts.get(p.pos);
+      // "There was a vine here a moment ago!": landing on a root eaten in the last 2 rounds
+      if (!link && eatenAt.has(p.pos) && r - eatenAt.get(p.pos) <= 2) st.ghost++;
+      // Just in time: climbing a vine that already has an egg on it
+      if (link && link.type === 'vine' && colonies.some(c => c.target === link && c.timer >= 1)) st.lastChance++;
+      if (link && link.type === 'wyrm') st.wyrmLandings++;
       if (link) {
         // Fortified wyrms (hatched from a vine, or fed on a hunter) are one level harder
         const fort = link.type === 'wyrm' && link.fortified && fortifiedPuzzle !== null;
@@ -130,7 +139,7 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
           if (c.timer === 1) st.eggs++;
           if (c.timer >= 3) {
             const v = c.target;
-            removeVine(v); st.vinesEaten++; c.target = null;
+            removeVine(v); st.vinesEaten++; c.target = null; eatenAt.set(v.from, round);
             if (hatchStyle === 'vine') {
               // the vine turns into a wyrm: head at the vine's top, tail at its root
               const w = { type: 'wyrm', from: v.to, to: v.from, id: b.nextId++, fortified: true };
@@ -182,7 +191,7 @@ function run(n, opts) {
   const all = Array.from({ length: GAMES }, () => playGame(n, opts));
   const avg = k => all.reduce((a, g) => a + (g[k] || 0), 0) / all.length;
   const rounds = all.map(g => g.rounds).sort((a, b) => a - b);
-  return { avg, rounds: avg('rounds'), p90: rounds[Math.floor(rounds.length * 0.9)],
+  return { all, avg, rounds: avg('rounds'), p90: rounds[Math.floor(rounds.length * 0.9)],
     long: all.filter(g => g.rounds > 40).length / all.length, timeout: all.filter(g => g.timeout).length / all.length };
 }
 const pct = x => (x * 100).toFixed(0) + '%';
@@ -198,17 +207,21 @@ const setups = [
   ['… players discourage 4 · hunters discourage 2', { playerAction: 'discourage', hunterAction: 'discourage' }],
   ['… players discourage 4 · hunters destroy', { playerAction: 'discourage', hunterAction: 'destroy' }],
 ];
-const header = '| Setup | Rounds (avg / 90%) | Over 40 rounds | Vines eaten | Fortified at end | Slides: wyrm (fortified) / tunnel | Wyrms flown off | Vines left | Wyrms left |\n|---|---|---|---|---|---|---|---|---|';
-const row = (label, r) => `| ${label} | ${f1(r.rounds)} / ${r.p90} | ${pct(r.long)} | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('fortLeft'))} | ${f1(r.avg('slides'))} (${f1(r.avg('fortSlides'))}) / ${f1(r.avg('tunnelSlides'))} | ${f1(r.avg('flew'))} | ${f1(r.avg('vinesLeft'))} | ${f1(r.avg('wyrmsLeft'))} |`;
-console.log(`${GAMES} games per row. Egg-first ants (vine turns into a wyrm), colony chance + 5% per player above 3; players and hunters destroy colonies.`);
-console.log('Normal puzzles solved 95%; fortified wyrms (hatched from a vine, or fed on a hunter) solved 75%.');
-const IRON = { playerAction: 'destroy', hunterAction: 'destroy', eggFirst: true, hatchStyle: 'vine', puzzle: 0.95, perExtraPlayer: 0.05 };
+const header = '| Setup | Wyrms at start | Rounds (avg / 90%) | Wyrm landings | Slides: wyrm (fortified) / tunnel | Games with a fortified slide | Vines eaten | "It was just here!" | Climbed just in time |\n|---|---|---|---|---|---|---|---|---|';
+const row = (label, r) => {
+  const all = r.all;
+  const share = f => pct(all.filter(f).length / all.length);
+  return `| ${label} | ${f1(r.avg('startWyrms'))} | ${f1(r.rounds)} / ${r.p90} | ${f1(r.avg('wyrmLandings'))} | ${f1(r.avg('slides'))} (${f1(r.avg('fortSlides'))}) / ${f1(r.avg('tunnelSlides'))} | ${share(g => g.fortSlides > 0)} | ${f1(r.avg('vinesEaten'))} | ${f1(r.avg('ghost'))} (${share(g => g.ghost > 0)} of games) | ${f1(r.avg('lastChance'))} (${share(g => g.lastChance > 0)}) |`;
+};
+console.log(`${GAMES} games per row. Normal puzzles solved 95%, fortified wyrms 75%. Egg-first ants (vine turns into a fortified wyrm), colony chance + 5% per player above 3; players and hunters destroy colonies.`);
+console.log('Counts are per game, for the whole group. "It was just here!" = someone lands where a vine was eaten in the last 2 rounds. "Climbed just in time" = someone climbs a vine that already has an egg on it.');
+const IRON = { playerAction: 'destroy', hunterAction: 'destroy', eggFirst: true, hatchStyle: 'vine', puzzle: 0.95, perExtraPlayer: 0.05, fortifiedPuzzle: 0.75 };
 for (const n of [2, 3, 4, 6]) {
   console.log(`\n### ${n} players (${Math.min(3, Math.max(2, n))} hunters)\n`);
   console.log(header);
-  console.log(row('Living forest only', run(n, { hunters: false, ants: false, puzzle: 0.95 })));
+  console.log(row('Living forest only, normal board', run(n, { hunters: false, ants: false, puzzle: 0.95 })));
   for (const [b0, pc] of [[0.10, 0.10], [0.20, 0.10]]) {
-    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, no fortifying`, run(n, { ...IRON, base: b0, perColony: pc })));
-    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, **fortified**`, run(n, { ...IRON, base: b0, perColony: pc, fortifiedPuzzle: 0.75 })));
+    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, normal board`, run(n, { ...IRON, base: b0, perColony: pc })));
+    console.log(row(`Iron Wyrm ${pct(b0)} + ${pct(pc)}/colony, **Iron board (+50 drop)**`, run(n, { ...IRON, base: b0, perColony: pc, ironBoard: true })));
   }
 }
