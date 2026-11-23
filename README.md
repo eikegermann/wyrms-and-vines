@@ -17,6 +17,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **Vines 🌿 (adding):** land on a vine's root and grow the vine from 0 to your target by rolling your level's dice and adding them on. Reach the target and you climb.
 - **Wyrms 🐲 (taking away):** land on a wyrm's head and its grip starts at your target. Roll your level's dice and take them away until the grip reaches 0. Shake it off and you stay put. If you don't, you slide down.
 - **Wrong answers:** each sum gets one retry. A second wrong answer on the same sum means the vine snaps or the wyrm wins.
+- **Stopping:** players can stop a puzzle at any time: "Let the vine go" on a vine, or "Stop and slide down" on a wyrm.
 - **Duels ⚔️:** land on another player's square and you may challenge them to read-write-make. The challenged player chooses whether the highest or lowest number wins. Each player rolls a d10 three times and places each digit in the hundreds, tens or ones before the next roll. The winner steps forward one square, and that square's vine or wyrm does not trigger. A tie means no winner.
 
 ## Living forest (on by default, switch on the setup screen)
@@ -25,6 +26,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **Vines:** every landing wears a vine out, and its leaves turn yellow. The first use plants a 🌱 sprout somewhere else, showing only its root. The sprout grows on the second use. On the third use the old vine withers and the sprout shoots up, revealing where it goes.
 - Computer players' landings count too.
 - Every move and new vine follows the board rules and never lands on a player.
+- New sprouts never appear below the lowest square anyone can still reach (the lowest player, or the lowest wyrm or tunnel tail).
 - The numbers live in `FOREST` in `js/logic.js`, and `node tests/forest.js` checks the rules hold through thousands of random changes.
 
 ## Iron Wyrm mode (switch on the setup screen; includes the Living forest)
@@ -33,6 +35,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **🐜 Vine-cutter ants:** colonies move in near vines. When they find one, a wyrm lays an 🥚 egg on it, and two rounds later the vine is gone and a **fortified wyrm** hatches along its path. Land on a colony to stomp it out.
 - **🏹 Hunters (2–3):** they roam the board. On a wyrm they win half the time and leave a **tunnel** 🕳️ that always slides you down. Otherwise they get eaten, and the wyrm becomes fortified. Hunters also trample ant colonies.
 - **⚙️ Fortified wyrms:** they wear iron plates, and their puzzle is one level harder. Above Adult it's the **iron grip:** start at 600, roll a d20, square it and take it away.
+- **🎯 Exact finish:** you must land on 100 exactly. Extra steps bounce you back (a 5 from 97 ends on 98).
 - **Intro card:** an Iron Wyrm or Living forest game opens with a short card on what to look out for.
 - **The numbers** live in `IRON` in `js/logic.js`. `node tests/iron.js` checks the board stays consistent through thousands of rounds, and `tools/sim_iron.js` runs the balance trials. The reasons are in ADR 0014.
 

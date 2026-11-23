@@ -46,7 +46,7 @@ with sync_playwright() as pw:
             ans.fill(str(eval(expr))); ans.press('Enter'); continue
         slot = page.locator(':is(#stage,#encCard) button.slot.pick')
         if slot.count(): slot.first.click(); continue
-        btn = page.locator(':is(#stage,#encCard) .actions button:not([disabled]):visible')
+        btn = page.locator(':is(#stage, #encounter:not(.win) #encCard) .actions button:not([disabled]):not(.giveUp):visible')
         if btn.count():
                 try: btn.first.click(timeout=1500)
                 except Exception: pass
@@ -78,7 +78,7 @@ with sync_playwright() as pw:
                 ans.fill(str(eval(expr))); ans.press('Enter'); continue
             slot = page.locator(S + ' button.slot.pick')
             if slot.count(): slot.first.click(); continue
-            btn = page.locator(S + ' .actions button:not([disabled]):visible')
+            btn = page.locator(':is(#stage, #encounter:not(.win) #encCard) .actions button:not([disabled]):not(.giveUp):visible')
             if btn.count():
                 try: btn.first.click(timeout=1500)
                 except Exception: pass

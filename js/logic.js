@@ -319,7 +319,7 @@ function linkAllowed(board, link, avoid = new Set(), ignore = null) {
 }
 
 // Find a new spot (and size) for a wyrm or vine. Returns the new link, or null.
-function findSpot(board, type, { endZone = false } = {}, avoid, ignore, rand = Math.random) {
+function findSpot(board, type, { endZone = false, minFrom = 2 } = {}, avoid, ignore, rand = Math.random) {
   const ri = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
   for (let t = 0; t < 800; t++) {
     let link;
@@ -329,7 +329,9 @@ function findSpot(board, type, { endZone = false } = {}, avoid, ignore, rand = M
       link = { type, from, to: from - drop };
     } else {
       const len = ri(...RULES.vineLength);
-      const from = ri(2, RULES.vineMaxTop - len);
+      const lo = Math.max(2, minFrom), hi = RULES.vineMaxTop - len;
+      if (lo > hi) continue;
+      const from = ri(lo, hi);
       link = { type, from, to: from + len };
     }
     if (linkAllowed(board, link, avoid, ignore)) { link.id = board.nextId++; return link; }
@@ -340,7 +342,13 @@ function findSpot(board, type, { endZone = false } = {}, avoid, ignore, rand = M
 // Apply what happens after a player lands on `link`. Mutates the board and returns an event:
 // wyrms: 'doze' (nothing visible yet), 'wake' (moved), 'fly' (gone), 'stay' (couldn't find a new spot)
 // vines: 'sprout' (first use), 'grow' (second), 'wither' (third: old vine gone, sprout becomes the vine)
-function forestEvent(board, link, solved, avoid = new Set(), rand = Math.random) {
+// The lowest square anyone can still reach: the lowest player, or the lowest wyrm or tunnel tail.
+// New sprouts never grow below it, or nobody could ever use them.
+function lowestReachable(board, playerSquares) {
+  return Math.min(...playerSquares, ...board.wyrms.map(w => w.to), ...(board.tunnels || []).map(t => t.to));
+}
+
+function forestEvent(board, link, solved, avoid = new Set(), rand = Math.random, playerSquares = null) {
   link.hits = (link.hits || 0) + 1;
   if (link.type === 'wyrm') {
     if (!solved) link.slides = (link.slides || 0) + 1;
@@ -361,7 +369,8 @@ function forestEvent(board, link, solved, avoid = new Set(), rand = Math.random)
   }
   // vine
   if (!link.sprout) {
-    const sp = findSpot(board, 'vine', {}, avoid, null, rand);
+    const minFrom = playerSquares && playerSquares.length ? lowestReachable(board, playerSquares) : 2;
+    const sp = findSpot(board, 'vine', { minFrom }, avoid, null, rand);
     if (sp) { sp.stage = 1; link.sprout = sp; board.sprouts.push(sp); }
   } else if (link.hits === 2) link.sprout.stage = 2;
   if (link.hits >= FOREST.witherAfter) {
@@ -410,6 +419,7 @@ function unlockedLevels(maxPlayed, unlockAll) {
 // ---------- Iron Wyrm mode ----------
 // Vine-cutter ants turn vines into fortified wyrms; hunters fight wyrms and leave tunnels.
 const IRON = {
+  exactFinish: true,       // you must land on 100 exactly; extra steps bounce you back
   hunters: n => Math.min(3, Math.max(2, n)),    // 1 per player, at least 2, at most 3
   hunterWin: 0.5,          // chance a hunter beats a wyrm (then it leaves a permanent tunnel)
   hunterReturn: 3,         // rounds until an eaten hunter is replaced
@@ -539,9 +549,15 @@ function stompColony(board, pos) {
   if (c.target) delete c.target.egg;
   return c;
 }
+// Where a move ends. With an exact finish, overshooting 100 bounces back by the extra steps.
+function moveTarget(pos, roll, exact) {
+  const to = pos + roll;
+  if (to <= SIZE) return to;
+  return exact ? SIZE - (to - SIZE) : SIZE;
+}
 const tunnelAt = (board, n) => (board.tunnels || []).find(t => t.from === n) || null;
 
-const API = { IRON, IRON_GRIP, fortifiedLevel, newIronState, ironRound, stompColony, tunnelAt, BOARD_PRESETS, FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
+const API = { moveTarget, lowestReachable, IRON, IRON_GRIP, fortifiedLevel, newIronState, ironRound, stompColony, tunnelAt, BOARD_PRESETS, FOREST, forestEvent, linkAllowed, findSpot, rebuildStarts, RULES, crosses, linkDistance, SIZE, LEVELS, levelById, diceLabel, hashString, makeRng, normaliseCode, randomCode,
   squareToCell, rowOf, generateBoard, simulate, BALANCE, rollDie, rollDice, rollD10,
   rwmValue, rwmWinner, aiPlace, unlockedLevels, CODE_WORDS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

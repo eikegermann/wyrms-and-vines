@@ -352,11 +352,14 @@ function choose(g, options, aiValue, aiDelay = DELAY.ai) {
   }).then(v => { alive(g); return v; });
 }
 
-function askNumber(g) {
+// Number entry. With giveUpLabel, there's also a button to stop; it resolves to null.
+function askNumber(g, giveUpLabel = null) {
   const row = el('div', 'answer');
   const inp = el('input'); inp.type = 'text'; inp.inputMode = 'numeric'; inp.autocomplete = 'off'; inp.maxLength = 4;
   const ok = el('button', 'btn gold', 'Check');
   row.append(inp, ok);
+  const stop = giveUpLabel ? el('button', 'btn ghost small giveUp', giveUpLabel) : null;
+  if (stop) row.append(stop);
   stage().appendChild(row);
   setTimeout(() => inp.focus(), 0);
   return new Promise(resolve => {
@@ -368,6 +371,7 @@ function askNumber(g) {
     };
     ok.onclick = submit;
     inp.onkeydown = e => { if (e.key === 'Enter') submit(); };
+    if (stop) stop.onclick = () => { inp.disabled = ok.disabled = stop.disabled = true; resolve(null); };
   }).then(v => { alive(g); return v; });
 }
 
@@ -450,6 +454,7 @@ async function introCard(g) {
     ['⚙️', 'Wyrms with iron plates are fortified: their puzzle is one level harder.'],
     ['🏹', 'Hunters roam the board and fight wyrms. If a wyrm eats a hunter, it grows iron plates.'],
     ['🕳️', "A hunter's tunnel always slides you down. No puzzle, so watch your step!"],
+    ['🎯', 'You must land on 100 exactly. Roll too much and you bounce back!'],
   ];
   const items = g.ironOn ? [...iron, ...forest] : forest;
   openEncounter(g.ironOn ? 'wyrm iron' : 'forest');
@@ -478,9 +483,20 @@ async function turn(g, p) {
   await choose(g, [{ label: '🎲 Roll to move', value: 1, cls: 'gold' }], p.ai ? 1 : undefined);
   const r = W.rollDie(6);
   await showRoll(g, p.name, [6], [r], `${rolled(p.name, [r])}<div class="rollSub">Move ${r} square${r > 1 ? 's' : ''}.</div>`);
-  const dest = Math.min(p.pos + r, W.SIZE);
-  log(`${esc(p.name)} rolls ${r} and moves to ${dest}.`);
-  await walk(g, p, dest);
+  // Iron Wyrm mode: you need to land on 100 exactly; extra steps bounce you back.
+  const exact = g.ironOn && W.IRON.exactFinish;
+  const dest = W.moveTarget(p.pos, r, exact);
+  if (p.pos + r > W.SIZE && exact) {
+    const back = p.pos + r - W.SIZE;
+    log(`${esc(p.name)} rolls ${r}, bounces off 100 and goes back ${back} to ${dest}.`);
+    await walk(g, p, W.SIZE);
+    await wait(g, 250);
+    await walk(g, p, dest);
+    addMsg(`💥 Boing! You need to land on 100 exactly. ${esc(p.name)} bounces back ${back} square${back > 1 ? 's' : ''} to ${dest}.`);
+  } else {
+    log(`${esc(p.name)} rolls ${r} and moves to ${dest}.`);
+    await walk(g, p, dest);
+  }
   if (p.pos >= W.SIZE) return win(g, p);
 
   const tunnel = g.ironOn ? W.tunnelAt(g.board, p.pos) : null;
@@ -578,7 +594,7 @@ async function ironPhase(g) {
 // ---------- Living forest ----------
 async function forestChange(g, p, link, solved) {
   const avoid = new Set([...g.players.map(q => q.pos), ...(g.board.colonies || []).map(c => c.pos)]);
-  const ev = W.forestEvent(g.board, link, solved, avoid);
+  const ev = W.forestEvent(g.board, link, solved, avoid, Math.random, g.players.map(q => q.pos));
   const at = n => `square <b>${n}</b>`;
   let card = null;
   if (ev.kind === 'fly') {
@@ -635,13 +651,24 @@ async function puzzle(g, p, link) {
     : (fort ? `This wyrm is fortified with iron plates: it's a <b>${L.name}</b> puzzle! ` : '') +
       `The wyrm's grip is <b>${T}</b>. Roll ${rollLabel} and take it away until it reaches 0, or slide down to <b>${link.to}</b>!`;
   const title = heat ? `🌿 ${esc(p.name)} found a vine!` : `${fort ? '⚙️ A fortified' : '🐲 A'} wyrm has ${esc(p.name)}!`;
+  // A player can stop the puzzle at any point: leave the vine, or let the wyrm have them.
+  const stopLabel = heat ? '🏳️ Let the vine go' : '🏳️ Stop and slide down';
+  const giveUp = async () => {
+    log(`🏳️ ${esc(p.name)} stopped the puzzle.`);
+    await resultCard(g, false, '🏳️', heat
+      ? `${esc(p.name)} lets the vine go and stays on square ${link.from}.`
+      : `${esc(p.name)} lets go and slides down to square ${link.to}.`, heat ? null : 'wyrm-slide');
+    return false;
+  };
 
   for (;;) {
     const pct = total / T;
     setStage(title, intro);
     addMsg(`<div class="meter"><div style="width:${Math.min(100, pct * 100)}%;background:${colour}"></div></div>` +
       (heat ? `Vine: <b>${total}</b> of ${T}` : `Grip: <b>${total}</b>`));
-    await choose(g, [{ label: `🎲 Roll ${W.diceLabel(L.dice)}`, value: 1, cls: heat ? 'vine' : 'wyrm' }], p.ai ? 1 : undefined);
+    const go = await choose(g, [{ label: `🎲 Roll ${W.diceLabel(L.dice)}`, value: 1, cls: heat ? 'vine' : 'wyrm' },
+      ...(p.ai ? [] : [{ label: stopLabel, value: 0, cls: 'ghost small giveUp' }])], p.ai ? 1 : undefined);
+    if (!go) return giveUp();
     const rolls = W.rollDice(L.dice);
     await showRoll(g, p.name, L.dice, rolls, rolled(p.name, rolls) + (L.square ? `<div class="rollSub">Now square it!</div>` : ''));
     // the iron grip squares the roll
@@ -665,7 +692,8 @@ async function puzzle(g, p, link) {
         ans = Math.random() < AI_ACCURACY ? correct : correct + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
         addMsg(`${esc(p.name)} says <b>${ans}</b>.`);
       } else {
-        ans = await askNumber(g);
+        ans = await askNumber(g, stopLabel);
+        if (ans === null) return giveUp();
       }
       right = ans === correct;
       SFX.play(right ? 'correct' : 'wrong');

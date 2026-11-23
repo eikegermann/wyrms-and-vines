@@ -4,7 +4,7 @@ Short records of significant decisions about how Wyrms & Vines is built, and why
 
 **When to write one:** when a decision about how the game works will matter later. That includes a board rule, a game mechanic, a technical approach, or a choice between real alternatives. Ideas and plans stay in GitHub Issues; an ADR records the outcome and links back.
 
-**How:** copy [template.md](template.md) to the next number (`0015-short-title.md`), fill it in, and add it to the table below. Never rewrite an accepted ADR's decision: write a new one that supersedes it, and set the old one's status to "Superseded by NNNN".
+**How:** copy [template.md](template.md) to the next number (`0017-short-title.md`), fill it in, and add it to the table below. Never rewrite an accepted ADR's decision: write a new one that supersedes it, and set the old one's status to "Superseded by NNNN".
 
 | ADR | Decision | Status |
 |---|---|---|
@@ -22,3 +22,5 @@ Short records of significant decisions about how Wyrms & Vines is built, and why
 | [0012](0012-living-forest.md) | Living forest: wyrms wake and move or fly away, vines wear out and resprout | Accepted |
 | [0013](0013-standalone-first-issues-for-planning.md) | Standalone first, the Inn later; GitHub Issues for planning | Accepted |
 | [0014](0014-iron-wyrm-mode.md) | Iron Wyrm mode: Iron boards, vine-cutter ants, hunters, fortified wyrms | Accepted |
+| [0015](0015-reachable-sprouts-and-iron-exact-finish.md) | Sprouts stay reachable; Iron Wyrm needs an exact finish | Accepted |
+| [0016](0016-players-can-stop-a-puzzle.md) | Players can stop a puzzle at any time | Accepted |

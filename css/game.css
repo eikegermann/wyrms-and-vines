@@ -174,3 +174,8 @@ label.check.left{margin-left:0;color:var(--ink)}
 .introList{list-style:none;padding:0;margin:8px 0 0;font-size:.92em;text-align:left}
 .introList li{display:flex;gap:12px;align-items:flex-start;margin:8px 0}
 .introList li span{flex:0 0 2.6em;font-size:1.35em;text-align:center}
+
+/* stop a puzzle */
+.btn.giveUp{opacity:.8;font-weight:600}
+.answer .giveUp{margin-left:auto}
+.actions .btn.giveUp:disabled{display:none}

@@ -36,7 +36,7 @@ const ri = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAction = 'destroy', hunterAction = 'none', base = ANT.base, perColony = ANT.perColony,
-  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0, fortifiedPuzzle = null, ironBoard = false } = {}) {
+  eggFirst = false, hatchStyle = 'nest', puzzle = PUZZLE, perExtraPlayer = 0, fortifiedPuzzle = null, ironBoard = false, exact = false } = {}) {
   // colonies appear more often in bigger games: + perExtraPlayer for every player above 3
   base += perExtraPlayer * Math.max(0, nPlayers - 3);
   const b = copyBoard(pick(ironBoard ? IRON_BOARDS : BOARDS));
@@ -96,7 +96,7 @@ function playGame(nPlayers, { hunters: useHunters = true, ants = true, playerAct
   for (let r = 1; r <= MAX_ROUNDS; r++) {
     round = r;
     for (const p of players) {
-      p.pos = Math.min(100, p.pos + d6());
+      p.pos = W.moveTarget(p.pos, d6(), exact);   // exact finish bounces back from 100
       if (p.pos >= 100) return { ...st, rounds: r, vinesLeft: b.vines.length, wyrmsLeft: b.wyrms.length, fortLeft: b.wyrms.filter(w => w.fortified).length };
       const t = b.tunnels.find(x => x.from === p.pos);
       if (t) { p.pos = t.to; st.tunnelSlides++; continue; }
@@ -216,6 +216,13 @@ const row = (label, r) => {
 console.log(`${GAMES} games per row. Normal puzzles solved 95%, fortified wyrms 75%. Egg-first ants (vine turns into a fortified wyrm), colony chance + 5% per player above 3; players and hunters destroy colonies.`);
 console.log('Counts are per game, for the whole group. "It was just here!" = someone lands where a vine was eaten in the last 2 rounds. "Climbed just in time" = someone climbs a vine that already has an egg on it.');
 const IRON = { playerAction: 'destroy', hunterAction: 'destroy', eggFirst: true, hatchStyle: 'vine', puzzle: 0.95, perExtraPlayer: 0.05, fortifiedPuzzle: 0.75 };
+console.log('\n### Exact finish (bounce back from 100), Iron Wyrm at 20% + 10%/colony on Iron boards\n');
+console.log(header);
+for (const n of [2, 3, 4, 6]) {
+  console.log(row(`${n} players, overshoot wins`, run(n, { ...IRON, base: 0.2, perColony: 0.1, ironBoard: true })));
+  console.log(row(`${n} players, **exact finish**`, run(n, { ...IRON, base: 0.2, perColony: 0.1, ironBoard: true, exact: true })));
+}
+if (process.argv.includes('--exact-only')) process.exit(0);
 for (const n of [2, 3, 4, 6]) {
   console.log(`\n### ${n} players (${Math.min(3, Math.max(2, n))} hunters)\n`);
   console.log(header);
