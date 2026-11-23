@@ -179,3 +179,5 @@ label.check.left{margin-left:0;color:var(--ink)}
 .btn.giveUp{opacity:.8;font-weight:600}
 .answer .giveUp{margin-left:auto}
 .actions .btn.giveUp:disabled{display:none}
+
+.prow select.inputSel{width:7.5em}

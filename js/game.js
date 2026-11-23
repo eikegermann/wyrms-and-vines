@@ -89,10 +89,15 @@ function renderSetup() {
       if (p.ai && /^Player \d$/.test(p.name)) p.name = AI_NAMES.find(n => !setup.players.some(q => q.name === n)) || 'Computer';
       renderSetup();
     };
+    // How this player answers puzzles: typing, or writing with the quill (from Dragon & Bard)
+    const input = el('select', 'inputSel'); input.title = 'How this player answers: typing, or writing with the quill';
+    input.innerHTML = `<option value="keys" ${p.input !== 'quill' ? 'selected' : ''}>⌨️ Typing</option><option value="quill" ${p.input === 'quill' ? 'selected' : ''}>🪶 Quill</option>`;
+    input.onchange = () => { p.input = input.value; };
+    input.style.visibility = p.ai ? 'hidden' : 'visible';
     const rm = el('button', 'btn small ghost', '✕'); rm.title = 'Remove player';
     rm.disabled = setup.players.length <= 1;
     rm.onclick = () => { setup.players.splice(i, 1); renderSetup(); };
-    row.append(sw, name, lvl, type, rm);
+    row.append(sw, name, lvl, type, input, rm);
     box.appendChild(row);
   });
   $('#addPlayerBtn').disabled = setup.players.length >= 4;
@@ -143,7 +148,7 @@ $('#logBtn').onclick = () => {
   $('#logBtn').textContent = open ? '📜 Hide log' : '📜 Show log';
   if (open) $('#log').scrollTop = $('#log').scrollHeight;
 };
-$('#quitBtn').onclick = () => { G = null; closeEncounter(); $('#rollOverlay').classList.remove('show'); show('setup'); renderSetup(); };
+$('#quitBtn').onclick = () => { G = null; if (typeof Quill !== 'undefined') Quill.close(); closeEncounter(); $('#rollOverlay').classList.remove('show'); show('setup'); renderSetup(); };
 
 // ===================================================================
 // Game
@@ -161,6 +166,7 @@ function startGame(code, players, forest = $('#forestToggle').checked, ironOn = 
   $('#log').innerHTML = '';
   $('#tokens').innerHTML = '';
   closeEncounter(); $('#rollOverlay').classList.remove('show');
+  if (typeof Quill !== 'undefined') Quill.close();
   drawBoard(board);
   show('game');
   renderPlayers(); placeTokens();
@@ -372,6 +378,26 @@ function askNumber(g, giveUpLabel = null) {
     ok.onclick = submit;
     inp.onkeydown = e => { if (e.key === 'Enter') submit(); };
     if (stop) stop.onclick = () => { inp.disabled = ok.disabled = stop.disabled = true; resolve(null); };
+  }).then(v => { alive(g); return v; });
+}
+
+// Writing the answer with Dragon & Bard's quill. Resolves to the number written, or undefined
+// if the player picks "Number pad" instead. In Trace and Remember mode the number is picked first;
+// a wrong pick closes the quill and counts as that try's answer, just like a wrong typed answer.
+function askQuill(g, promptHtml, correct, digits) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = v => { if (!settled) { settled = true; resolve(v); } };
+    Quill.open({
+      count: digits, prompt: promptHtml,
+      checkPick: v => {
+        if (+v === correct) return true;
+        setTimeout(() => { Quill.close(); finish(+v); }, 1100);
+        return 'Not quite!';
+      },
+      onDone: r => finish(+(r.text.replace(/^0+(?=\d)/, '') || '0')),
+      onCancel: () => finish(undefined),
+    });
   }).then(v => { alive(g); return v; });
 }
 
@@ -692,8 +718,16 @@ async function puzzle(g, p, link) {
         ans = Math.random() < AI_ACCURACY ? correct : correct + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
         addMsg(`${esc(p.name)} says <b>${ans}</b>.`);
       } else {
-        ans = await askNumber(g, stopLabel);
-        if (ans === null) return giveUp();
+        if (p.input === 'quill' && typeof Quill !== 'undefined') {
+          // how many digits the answer could need, so the quill offers enough boxes
+          const most = heat ? T + (L.square ? 400 : L.dice.reduce((a, b) => a + b, 0)) : T;
+          ans = await askQuill(g, `<b>${q}</b>`, correct, String(most).length);
+        }
+        // typing, or the player chose "Number pad" in the quill card
+        if (ans === undefined) {
+          ans = await askNumber(g, stopLabel);
+          if (ans === null) return giveUp();
+        }
       }
       right = ans === correct;
       SFX.play(right ? 'correct' : 'wrong');

@@ -1,0 +1,58 @@
+/* The quill card, copied from Dragon & Bard (css/game.css). Its colours, and the few button
+   styles it relies on, are set here so it looks the same in Wyrms & Vines. */
+#quillLayer{--ink:#f6efd9;--fire:#ff7a2f;--bad:#ff5d73;--gold:#ffd166;--panel2:#37335a}
+#quillLayer .btn{border-radius:16px;padding:12px 20px;font-size:20px;font-weight:700;box-shadow:0 4px 0 #0006;min-height:52px}
+#quillLayer .btn.fire{background:var(--fire);color:#2a1300}
+#quillLayer .btn.gold{background:var(--gold);color:#3a2a00}
+#quillLayer .btn.ghost{background:transparent;border:2px solid var(--panel2);box-shadow:none}
+#quillLayer .row{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+#quillLayer button{font:inherit;border:0;cursor:pointer}
+#quillLayer .qpad button,#quillLayer .qlv,#quillLayer .qmini{font-weight:800}
+/* The quill card */
+#quillLayer{position:fixed;inset:0;background:#0009;display:none;align-items:flex-start;justify-content:center;padding:14px 14px 150px;z-index:70;overflow:auto}
+#quillLayer.on{display:flex}
+#qCard{background:var(--ink);color:#2a2340;border-radius:26px;padding:14px 20px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:880px;width:100%}
+.qhead{display:flex;align-items:center;gap:12px;width:100%;flex-wrap:wrap;font-size:20px}
+.qhead b{flex:1}
+.qx{color:#2a2340;border-color:#8a7fb0;font-size:16px;padding:8px 12px}
+.qlevels{display:flex;gap:6px}
+.qlv{background:#e6dcc2;border-radius:999px;padding:7px 12px;font-size:15px;font-weight:800;color:#2a2340}
+.qlv.on{background:#2a2340;color:var(--ink)}
+.qprompt{font-size:20px;text-align:center;background:#efe5cb;border-radius:14px;padding:6px 14px}
+.qprompt:empty{display:none}
+.qask{font-size:24px;font-weight:800}
+.qpicked{font-size:60px;font-weight:800;min-width:120px;text-align:center;border-bottom:4px solid #8a7fb0;line-height:1.1}
+.qpad{display:grid;grid-template-columns:repeat(6,62px);gap:8px}
+.qpad.small{grid-template-columns:repeat(10,48px)}
+.qpad button{height:58px;font-size:28px;font-weight:800;border-radius:14px;background:#2a2340;color:var(--ink);box-shadow:0 4px 0 #0005}
+.qpad.small button{height:48px;font-size:24px}
+.qpad.qnope{animation:qshake .4s}
+.qpad button.go{background:var(--fire);color:#2a1300}
+.qboxes2{display:flex;gap:16px;justify-content:center}
+.qcell{display:flex;flex-direction:column;align-items:center;gap:6px}
+.qpaper{position:relative;width:min(170px,22vh);aspect-ratio:100/140;background:#fffaf0;border:3px solid #8a7fb0;border-radius:16px;overflow:hidden}
+.qpaper canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.qguide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .8s}
+.qguide.gone{opacity:0}
+.qdash{fill:none;stroke:#9d93c4;stroke-width:4;stroke-dasharray:5 6;stroke-linecap:round;stroke-linejoin:round}
+.qarrow{fill:#e8743b}
+.qstart{fill:#3cc46a;stroke:#fff;stroke-width:2}
+.qstart.later{fill:#4f8fe0}
+.qnum{font-size:13px;font-weight:800;fill:#2a2340}
+.qanim.out{transition:opacity .6s;opacity:0!important}
+.qanim{fill:none;stroke:#e8743b;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:.85;animation:qdraw 1s linear forwards}
+@keyframes qdraw{to{stroke-dashoffset:0}}
+.qmini{background:#e6dcc2;border-radius:10px;padding:6px 10px;font-size:15px;font-weight:800;color:#2a2340}
+.qcell.qlater{visibility:hidden}
+.qcell.qoptional .qpaper{border-style:dashed;opacity:.85}
+.qcell.qbad .qpaper{animation:qshake .4s;border-color:var(--bad)}
+@keyframes qshake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.qcell.qfocus .qpaper{border-color:var(--fire);box-shadow:0 0 0 4px #ff7a2f55}
+.qbtns .btn.ghost{color:#2a2340;border-color:#8a7fb0}
+.qquestion{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:22px}
+.qquestion:empty{display:none}
+.qbig{font-size:44px;line-height:1}
+.qopts .btn:not(.gold){background:#fffaf0;color:#2a2340;border:3px solid #8a7fb0;min-width:84px;box-shadow:0 4px 0 #8a7fb0}
+.qmsg{min-height:1.3em;font-size:18px;font-weight:700;text-align:center}
+.qmsg.warn{color:#b23a48}.qmsg.good{color:#1f8a4c}
+
