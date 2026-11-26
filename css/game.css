@@ -181,3 +181,6 @@ label.check.left{margin-left:0;color:var(--ink)}
 .actions .btn.giveUp:disabled{display:none}
 
 .prow select.inputSel{width:7.5em}
+
+/* Oli's wyrm artwork: a soft shadow keeps it readable on both square colours */
+#links .wyrmArt{filter:drop-shadow(0 0 .35px #0009)}

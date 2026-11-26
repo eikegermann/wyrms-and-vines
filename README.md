@@ -17,7 +17,7 @@ The game speed can be set on the setup screen and changed during a game; the cho
 - **Vines 🌿 (adding):** land on a vine's root and grow the vine from 0 to your target by rolling your level's dice and adding them on. Reach the target and you climb.
 - **Wyrms 🐲 (taking away):** land on a wyrm's head and its grip starts at your target. Roll your level's dice and take them away until the grip reaches 0. Shake it off and you stay put. If you don't, you slide down.
 - **Wrong answers:** each sum gets one retry. A second wrong answer on the same sum means the vine snaps or the wyrm wins.
-- **Typing or writing:** each human player chooses on the setup screen to type answers or write them with the 🪶 quill, using a finger or stylus. The quill is Dragon & Bard's, with Trace, Remember and Free levels.
+- **Typing or writing:** each human player chooses on the setup screen to type answers or write them with the 🪶 quill, using a finger or stylus. The quill is Dragon & Bard's, with Trace, Remember and Free levels. Numbers must be written cleanly: scribbles over a number aren't accepted, because Dragon & Bard's "Chaos crush" setting isn't used here.
 - **Stopping:** players can stop a puzzle at any time: "Let the vine go" on a vine, or "Stop and slide down" on a wyrm.
 - **Duels ⚔️:** land on another player's square and you may challenge them to read-write-make. The challenged player chooses whether the highest or lowest number wins. Each player rolls a d10 three times and places each digit in the hundreds, tens or ones before the next roll. The winner steps forward one square, and that square's vine or wyrm does not trigger. A tie means no winner.
 
@@ -83,6 +83,8 @@ The reasons behind the rules and the design are recorded as architecture decisio
 
 - `index.html`, `css/game.css`
 - `js/logic.js`: pure game logic with no screen code: levels, seeded board generation and balance check, dice, read-write-make scoring, computer strategy, unlocks. It also runs in Node.
+- `img/wyrm-oli.png`: Oli's wyrm, drawn on the iPad and lifted off the template (ADR 0018).
+- `tools/bundle.py`: builds the single offline HTML file, with images inlined.
 - `js/vendor/`: the quill and handwriting recogniser, copied unchanged from Dragon & Bard (see `js/vendor/README.md`). `js/quill-adapter.js` and `css/quill.css` connect them.
 - `js/sound.js`: plays sound effects from `sounds/` (missing files are skipped).
 - `js/game.js`: title card, setup screen, board drawing, turns, puzzles, duels.

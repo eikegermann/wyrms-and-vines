@@ -11,6 +11,9 @@ const COLOURS = [
   { c: '#1e88e5', n: 'Blue' }, { c: '#e53935', n: 'Red' }, { c: '#f9a825', n: 'Gold' }, { c: '#2e7d32', n: 'Green' },
   { c: '#8e24aa', n: 'Purple' }, { c: '#ef6c00', n: 'Orange' }, { c: '#00897b', n: 'Teal' }, { c: '#d81b60', n: 'Pink' }];
 const AI_NAMES = ['Cinder', 'Sleet', 'Puff', 'Smoulder'];
+// Wyrm artwork: Oli's drawing (img/wyrm-oli.png). Set to null to go back to the simple drawn wyrms.
+const WYRM_ART = 'img/wyrm-oli.png';
+const WYRM_ART_HEIGHT = 7;          // in board units (a square is 10)
 const AI_ACCURACY = 0.88;                // chance a computer player gets a sum right
 const DELAY = { ai: 750, step: 150, slide: 750, spin: 80, hold: 900, inlineHold: 765 };
 // Game speed: every pause is multiplied by the chosen factor.
@@ -259,14 +262,29 @@ function drawLinks(board, fresh = new Set()) {
   board.wyrms.forEach((w, i) => {
     const g = group(w);
     const a = cellCentre(w.from), b = cellCentre(w.to);
-    const d = curve(a, b, i % 2 ? 2 : -2);
-    mk(g, 'path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
-    mk(g, 'path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
-    // Fortified wyrms wear iron plates along the back and an iron ring round the head.
-    if (w.fortified) mk(g, 'path', { d, fill: 'none', stroke: '#cfd8dc', 'stroke-width': 2.2, 'stroke-dasharray': '1.1 1.1', 'stroke-linecap': 'butt', opacity: .95 });
-    mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: w.fortified ? '#eceff1' : '#3a1145', 'stroke-width': w.fortified ? 1 : .5 });
-    mk(g, 'circle', { cx: a.x - .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
-    mk(g, 'circle', { cx: a.x + .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+    if (WYRM_ART) {
+      // Oli's wyrm, stretched from the tail square to the head square. His drawing has the tail
+      // on the left and the head on the right; it's flipped when it points left, so it's never upside down.
+      const ang = Math.atan2(a.y - b.y, a.x - b.x) * 180 / Math.PI;
+      const len = Math.hypot(a.x - b.x, a.y - b.y) + 5;
+      const flip = Math.abs(ang) > 90 ? ' scale(1,-1)' : '';
+      mk(g, 'image', { href: WYRM_ART, x: -len / 2, y: -WYRM_ART_HEIGHT / 2, width: len, height: WYRM_ART_HEIGHT,
+        preserveAspectRatio: 'none', class: 'wyrmArt',
+        transform: `translate(${(a.x + b.x) / 2},${(a.y + b.y) / 2}) rotate(${ang})${flip}` });
+      // Fortified wyrms wear iron plates along the back.
+      if (w.fortified) mk(g, 'line', { x1: b.x, y1: b.y, x2: a.x, y2: a.y, stroke: '#cfd8dc', 'stroke-width': 1.8, 'stroke-dasharray': '1.1 1.1', opacity: .9 });
+      // a ring marks the square that triggers the wyrm (iron for fortified wyrms)
+      mk(g, 'circle', { cx: a.x, cy: a.y, r: 3, fill: 'none', stroke: w.fortified ? '#eceff1' : '#5e1f70', 'stroke-width': w.fortified ? 1 : .7, opacity: .85 });
+    } else {
+      const d = curve(a, b, i % 2 ? 2 : -2);
+      mk(g, 'path', { d, fill: 'none', stroke: '#5e1f70', 'stroke-width': 3.2, 'stroke-linecap': 'round', opacity: .85 });
+      mk(g, 'path', { d, fill: 'none', stroke: '#c77ddb', 'stroke-width': 1.2, 'stroke-dasharray': '1.2 1.6', 'stroke-linecap': 'round', opacity: .9 });
+      // Fortified wyrms wear iron plates along the back and an iron ring round the head.
+      if (w.fortified) mk(g, 'path', { d, fill: 'none', stroke: '#cfd8dc', 'stroke-width': 2.2, 'stroke-dasharray': '1.1 1.1', 'stroke-linecap': 'butt', opacity: .95 });
+      mk(g, 'circle', { cx: a.x, cy: a.y, r: 2.6, fill: '#7b2d91', stroke: w.fortified ? '#eceff1' : '#3a1145', 'stroke-width': w.fortified ? 1 : .5 });
+      mk(g, 'circle', { cx: a.x - .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+      mk(g, 'circle', { cx: a.x + .9, cy: a.y - .5, r: .55, fill: '#ffeb3b' });
+    }
     // Disturbed wyrms get sleepy, then grumpy.
     const mood = (w.hits || 0) >= 2 ? '😠' : (w.hits || 0) === 1 ? '💤' : '';
     if (mood) mk(g, 'text', { x: a.x + 3.4, y: a.y - 1.6, 'font-size': 3.6, 'text-anchor': 'middle' }).textContent = mood;

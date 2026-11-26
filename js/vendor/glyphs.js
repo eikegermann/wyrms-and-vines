@@ -100,7 +100,37 @@ function formation(strokes,ch){
   return {start,dir:da<75};
 }
 
-const Glyphs={DIGITS,VARIANTS,recognise,verdict,formation,LIMIT,RATIO};
+// Tidiness: is the ink mostly the character, and is the character all there?
+// precision = share of the child's ink lying near the character's shape (scribbles, teeth and flags lower it)
+// recall    = share of the character's shape covered by ink (missing parts lower it)
+// inPlace: compare in box coordinates (tracing over the guide); otherwise both are normalised first.
+function pointsOf(strokes,n){const pts=flat(strokes.filter(s=>s.length>1));return pts.length?resample(pts,n):[];}
+function nearShare(a,b,r){if(!a.length||!b.length)return 0;let k=0;
+  for(const p of a){let m=1e9;for(const q of b){const d=(p.x-q.x)**2+(p.y-q.y)**2;if(d<m)m=d;}if(Math.sqrt(m)<=r)k++;}return k/a.length;}
+function tidiness(strokes,ch,inPlace){
+  const forms=[DIGITS[ch]?DIGITS[ch].strokes:null,...(VARIANTS[ch]||[])].filter(Boolean);
+  let best={precision:0,recall:0,ink:9};
+  for(const f of (inPlace?forms.slice(0,1):forms)){
+    let u=pointsOf(strokes,128), m=pointsOf(f,128), r=11;
+    if(!u.length)return best;
+    if(!inPlace){u=normalise(u);m=normalise(m);r=.1;}
+    // extra ink: how much longer the child's lines are than the character itself (decorations add length)
+    const len=pts=>pts.reduce((a,p,i)=>i&&pts[i-1].id===p.id?a+Math.hypot(p.x-pts[i-1].x,p.y-pts[i-1].y):a,0);
+    const ink=len(inPlace?flat(strokes.filter(s=>s.length>1)):normalise(flat(strokes.filter(s=>s.length>1))))/
+              Math.max(1e-6,len(inPlace?flat(f):normalise(flat(f))));
+    const t={precision:nearShare(u,m,r),recall:nearShare(m,u,r),ink};
+    if(t.precision+t.recall>best.precision+best.recall)best=t;
+  }
+  return best;
+}
+// Normal play requires proper writing: scribbles and decorations over a number aren't accepted.
+// (Chaos crush mode skips this check altogether; see js/quill.js.)
+// Tuned in tests/quill_accuracy.js on clean, wobbly and decorated digits; retune with real samples.
+const TIDY={precision:.85,recall:.75,ink:1.3};
+function tidyEnough(strokes,ch,inPlace){const t=tidiness(strokes,ch,inPlace),need=TIDY;
+  return {ok:t.precision>=need.precision&&t.recall>=need.recall&&t.ink<=need.ink,...t};}
+
+const Glyphs={DIGITS,VARIANTS,recognise,verdict,formation,tidiness,tidyEnough,TIDY,LIMIT,RATIO};
 root.Glyphs=Glyphs;
 if(typeof module!=='undefined')module.exports=Glyphs;
 })(typeof window!=='undefined'?window:globalThis);

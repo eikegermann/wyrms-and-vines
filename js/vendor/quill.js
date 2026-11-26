@@ -164,14 +164,34 @@ function done(){
         b.retries++; b.strokes=[]; redraw(b); showGuide(b,true);
         b.el.classList.add('qbad');setTimeout(()=>b.el.classList.remove('qbad'),600);
         msg(`Hmm, that doesn't look like a ${b.expected} yet. Watch again, and follow the arrows!`,'warn'); return;}
+      // the right number, but scribbled over or decorated? (on the guide when tracing, any size otherwise)
+      if(!chaos()&&!Glyphs.tidyEnough(b.strokes,b.expected,b.mode===1).ok){
+        b.retries++; b.messy=(b.messy||0)+1; b.strokes=[]; redraw(b); if(b.mode===1)showGuide(b,false);
+        b.el.classList.add('qbad');setTimeout(()=>b.el.classList.remove('qbad'),600);
+        msg(MESSY,'warn'); return;}
       b.resolved=b.expected; continue;
     }
     if(!b.strokes.length)continue;         // an empty free box is fine (one-digit answers)
     const c=Glyphs.recognise(b.strokes), v=Glyphs.verdict(c);
+    const tidy=ch=>Glyphs.tidyEnough(b.strokes,ch,false).ok;
+    if(!chaos()&&v!=='unknown'&&!tidy(c[0].ch)&&!(c[1]&&tidy(c[1].ch))){b.messy=(b.messy||0)+1;messy(b);return;}
     if(v==='sure'){b.resolved=c[0].ch;continue;}
     ask(b,v==='unsure'?[c[0].ch,c[1].ch]:[]); return;
   }
   finish();
+}
+const MESSY="I'm sorry, I can't read that. Could you write it more clearly?";
+// Chaos crush: the player may scribble and decorate after writing; the number underneath still counts.
+function chaos(){return typeof S!=='undefined'&&!!S.quillChaos;}
+// Scribbles, teeth, flags… The number may be in there, but it has to be written clearly.
+function messy(b){
+  Q.boxes.forEach(x=>x.el.classList.toggle('qfocus',x===b));
+  const qq=$q('.qquestion'); msg(MESSY,'warn');
+  qq.innerHTML=`<div class="row qopts"></div>`;
+  const row=qq.querySelector('.qopts');
+  const add=(label,cls,fn)=>{const x=document.createElement('button');x.className='btn '+cls;x.innerHTML=label;x.onclick=fn;row.appendChild(x);};
+  add('↺ Try again','',()=>{b.strokes=[];redraw(b);b.el.classList.remove('qfocus');qq.innerHTML='';msg('');});
+  add('✏️ Show me how','gold',()=>showMeHow(b));
 }
 function ask(b,options){
   Q.boxes.forEach(x=>x.el.classList.toggle('qfocus',x===b));
@@ -180,7 +200,8 @@ function ask(b,options){
   const row=qq.querySelector('.qopts');
   const add=(label,cls,fn)=>{const x=document.createElement('button');x.className='btn '+cls;x.innerHTML=label;x.onclick=fn;row.appendChild(x);};
   options.forEach(o=>add(`<span class="qbig">${o}</span>`,'',()=>{b.resolved=o;b.asked=true;b.el.classList.remove('qfocus');qq.innerHTML='';done();}));
-  add(options.length?'Something else':'I wrote…','',()=>whichDidYouWrite(b));
+  // normal play: an unreadable box can't be talked past with "I wrote…"
+  if(options.length||chaos())add(options.length?'Something else':'I wrote…','',()=>whichDidYouWrite(b));
   if(!options.length)add('↺ Try again','',()=>{b.strokes=[];redraw(b);b.el.classList.remove('qfocus');qq.innerHTML='';msg('');});
   add('✏️ Show me how','gold',()=>showMeHow(b));
 }
@@ -207,7 +228,7 @@ function showMeHow(b){
 function finish(){
   const used=Q.boxes.filter(b=>b.resolved!=null);
   const chars=used.map(b=>{const f=Glyphs.formation(b.strokes,b.resolved);
-    return {ch:b.resolved,mode:b.mode,asked:b.asked,misread:!!b.misread,retries:b.retries,peeks:b.peeks,start:f.start,dir:f.dir};});
+    return {ch:b.resolved,mode:b.mode,asked:b.asked,misread:!!b.misread,messy:b.messy||0,retries:b.retries,peeks:b.peeks,start:f.start,dir:f.dir};});
   const text=chars.map(c=>c.ch).join('');
   // tips only where the child saw the guide (trace/remember or "show me how"); in free writing we just record
   const off=chars.find(c=>c.mode!==3&&!c.start)||chars.find(c=>c.mode!==3&&!c.dir);
